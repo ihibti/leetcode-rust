@@ -1,0 +1,5 @@
+[alias]
+solve = "run -p xtask -- solve"
+archive = "run -p xtask -- archive"
+progress = "run -p xtask -- progress"
+setup = "run -p xtask -- setup"

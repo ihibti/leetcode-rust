@@ -1,6 +1,6 @@
 use std::fmt;
-use std::io::Read;
 
+#[allow(dead_code)]
 pub struct ProblemData {
     pub slug: String,
     pub title: String,

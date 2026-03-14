@@ -56,29 +56,29 @@ pub fn run(root: &Path, force: bool, url: Option<&str>) -> Result<(), io::Error>
         Some(url) => {
             match crate::leetcode::extract_slug(url) {
                 Some(slug) => {
-                    eprintln!("Fetching problem: {slug}...");
+                    eprintln!("Fetching {slug} from LeetCode...");
                     match crate::leetcode::fetch_problem(&slug) {
                         Ok(data) => {
-                            eprintln!("Got it: {}", data.title);
+                            eprintln!("Got it — {}", data.title);
                             assemble_template(&data)
                         }
                         Err(e) => {
-                            eprintln!("Warning: {e}");
-                            eprintln!("Starting with blank template.");
+                            eprintln!("Couldn't fetch: {e}");
+                            eprintln!("No worries, starting with a blank template.");
                             SOLUTION_TEMPLATE.to_string()
                         }
                     }
                 }
                 None => {
-                    eprintln!("Warning: not a valid LeetCode URL.");
+                    eprintln!("That doesn't look like a LeetCode URL.");
                     eprintln!("Expected: https://leetcode.com/problems/<problem-name>/");
-                    eprintln!("Starting with blank template.");
+                    eprintln!("Starting with a blank template instead.");
                     SOLUTION_TEMPLATE.to_string()
                 }
             }
         }
         None => {
-            println!("Tip: pass a LeetCode URL to auto-generate tests (cargo solve <url>)");
+            println!("Tip: run cargo solve <url> to auto-generate tests from a LeetCode problem");
             SOLUTION_TEMPLATE.to_string()
         }
     };
@@ -86,7 +86,7 @@ pub fn run(root: &Path, force: bool, url: Option<&str>) -> Result<(), io::Error>
     fs::write(&solution_path, &content)?;
     fs::write(&session_path, Utc::now().to_rfc3339())?;
 
-    println!("Ready! Open src/solution.rs");
+    println!("Ready! Open src/solution.rs and start coding");
     Ok(())
 }
 

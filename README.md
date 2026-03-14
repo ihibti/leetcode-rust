@@ -4,17 +4,21 @@ A local workspace for solving LeetCode problems in Rust with full IDE support (r
 
 ---
 
-## Quick Start
+## Install
 
 ```bash
 git clone https://github.com/ihibti/leetcode-rust.git
 cd leetcode-rust
-./lc setup                                              # checks your environment
-cargo solve https://leetcode.com/problems/two-sum/      # fetches problem, generates tests
+./lc setup
+```
+
+## Solve a Problem
+
+```bash
+cargo solve https://leetcode.com/problems/two-sum/
 # open src/solution.rs — impl block and tests are ready
-cargo watch -x test     # live test feedback as you code
+cargo watch -x test
 cargo archive two-sum -d easy -t "array,hash-map" -r "iterators,entry-api"
-cargo progress          # see your stats
 ```
 
 ## Commands

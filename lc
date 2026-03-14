@@ -34,7 +34,7 @@ check_tool() {
 }
 
 cmd_setup() {
-    echo "Checking environment..."
+    echo "Checking your setup..."
     echo ""
 
     local os
@@ -59,7 +59,7 @@ cmd_setup() {
     fi
 
     if $ALL_GOOD; then
-        echo -e "${GREEN}Ready!${NC} Run 'cargo solve' to start a new problem."
+        echo -e "${GREEN}Ready!${NC} Run 'cargo solve <leetcode-url>' to start a new problem."
     else
         echo "Some required tools are missing. Install them and run './lc setup' again."
     fi
@@ -93,7 +93,7 @@ cmd_reset() {
     fi
 
     echo ""
-    echo "Done. Your archive/ is untouched."
+    echo "All clean! Your archive/ is safe."
 }
 
 case "${1:-setup}" in

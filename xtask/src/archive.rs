@@ -55,7 +55,7 @@ pub fn run(
     fs::write(&solution_path, SOLUTION_TEMPLATE)?;
     let _ = fs::remove_file(&session_path);
 
-    println!("Archived to archive/{filename}.rs");
+    println!("Saved to archive/{filename}.rs — nice work!");
     Ok(())
 }
 

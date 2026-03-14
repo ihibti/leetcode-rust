@@ -21,7 +21,23 @@ mod tests {
 }
 "#;
 
-pub fn run(root: &Path, force: bool, example_input: Option<&str>) -> Result<(), io::Error> {
+fn assemble_template(data: &crate::leetcode::ProblemData) -> String {
+    let parse_result = crate::parse_examples::parse_examples(&data.examples_text);
+    let method_name = crate::leetcode::extract_method_name(&data.rust_snippet);
+
+    for warning in &parse_result.warnings {
+        eprintln!("Warning: {warning}");
+    }
+
+    let test_code = crate::parse_examples::generate_test_code(&parse_result, method_name.as_deref());
+
+    format!(
+        "use crate::types::*;\n\npub struct Solution;\n\n{}\n\n{test_code}",
+        data.rust_snippet
+    )
+}
+
+pub fn run(root: &Path, force: bool, url: Option<&str>) -> Result<(), io::Error> {
     let solution_path = root.join("src/solution.rs");
     let session_path = root.join(".solve_session");
 
@@ -36,37 +52,41 @@ pub fn run(root: &Path, force: bool, example_input: Option<&str>) -> Result<(), 
         }
     }
 
-    let test_code = match example_input {
-        Some(input) if !input.trim().is_empty() => {
-            let result = crate::parse_examples::parse_examples(input);
-            for warning in &result.warnings {
-                eprintln!("Warning: {warning}");
-            }
-            if result.examples.is_empty() && !result.warnings.is_empty() {
-                eprintln!("Couldn't parse examples, starting with blank tests.");
-                None
-            } else if result.examples.is_empty() {
-                None
-            } else {
-                Some(crate::parse_examples::generate_test_code(&result, None))
+    let content = match url {
+        Some(url) => {
+            match crate::leetcode::extract_slug(url) {
+                Some(slug) => {
+                    eprintln!("Fetching problem: {slug}...");
+                    match crate::leetcode::fetch_problem(&slug) {
+                        Ok(data) => {
+                            eprintln!("Got it: {}", data.title);
+                            assemble_template(&data)
+                        }
+                        Err(e) => {
+                            eprintln!("Warning: {e}");
+                            eprintln!("Starting with blank template.");
+                            SOLUTION_TEMPLATE.to_string()
+                        }
+                    }
+                }
+                None => {
+                    eprintln!("Warning: not a valid LeetCode URL.");
+                    eprintln!("Expected: https://leetcode.com/problems/<problem-name>/");
+                    eprintln!("Starting with blank template.");
+                    SOLUTION_TEMPLATE.to_string()
+                }
             }
         }
-        _ => None,
-    };
-
-    let content = match test_code {
-        Some(tests) => {
-            format!(
-                "use crate::types::*;\n\npub struct Solution;\n\n\
-                 // Paste your impl Solution {{}} below\n\n{tests}")
+        None => {
+            println!("Tip: pass a LeetCode URL to auto-generate tests (cargo solve <url>)");
+            SOLUTION_TEMPLATE.to_string()
         }
-        None => SOLUTION_TEMPLATE.to_string(),
     };
 
-    fs::write(&solution_path, content)?;
+    fs::write(&solution_path, &content)?;
     fs::write(&session_path, Utc::now().to_rfc3339())?;
 
-    println!("Ready! Open src/solution.rs and paste your impl Solution.");
+    println!("Ready! Open src/solution.rs");
     Ok(())
 }
 
@@ -113,9 +133,29 @@ mod tests {
     }
 
     #[test]
-    fn solve_with_valid_examples() {
+    fn solve_no_url_gives_template() {
         let dir = setup_dir();
-        let examples = "\
+        run(dir.path(), false, None).unwrap();
+
+        let content = fs::read_to_string(dir.path().join("src/solution.rs")).unwrap();
+        assert_eq!(content, SOLUTION_TEMPLATE);
+    }
+
+    #[test]
+    fn solve_invalid_url_gives_template() {
+        let dir = setup_dir();
+        run(dir.path(), false, Some("https://example.com/not-leetcode")).unwrap();
+
+        let content = fs::read_to_string(dir.path().join("src/solution.rs")).unwrap();
+        assert_eq!(content, SOLUTION_TEMPLATE);
+    }
+
+    #[test]
+    fn assemble_template_with_examples() {
+        let data = crate::leetcode::ProblemData {
+            slug: "two-sum".into(),
+            title: "Two Sum".into(),
+            examples_text: "\
 Example 1:
 
 Input: nums = [2,7,11,15], target = 9
@@ -124,34 +164,33 @@ Output: [0,1]
 Example 2:
 
 Input: nums = [3,2,4], target = 6
-Output: [1,2]";
+Output: [1,2]"
+            .into(),
+            rust_snippet: "impl Solution {\n    pub fn two_sum(nums: Vec<i32>, target: i32) -> Vec<i32> {\n        \n    }\n}".into(),
+        };
 
-        run(dir.path(), false, Some(examples)).unwrap();
-
-        let content = fs::read_to_string(dir.path().join("src/solution.rs")).unwrap();
+        let content = assemble_template(&data);
+        assert!(content.contains("pub struct Solution;"));
+        assert!(content.contains("pub fn two_sum"));
         assert!(content.contains("fn example_1()"));
         assert!(content.contains("fn example_2()"));
-        assert!(content.contains("let nums = vec![2, 7, 11, 15];"));
-        assert!(content.contains("let expected = vec![0, 1];"));
+        assert!(content.contains("let result = Solution::two_sum(nums, target);"));
+        assert!(content.contains("assert_eq!(result, expected);"));
+        assert!(!content.contains("// TODO"));
     }
 
     #[test]
-    fn solve_with_garbage_examples() {
-        let dir = setup_dir();
+    fn assemble_template_with_bad_examples() {
+        let data = crate::leetcode::ProblemData {
+            slug: "test".into(),
+            title: "Test".into(),
+            examples_text: "garbage that wont parse".into(),
+            rust_snippet: "impl Solution {\n    pub fn foo(x: i32) -> i32 {\n        \n    }\n}".into(),
+        };
 
-        run(dir.path(), false, Some("not a leetcode example")).unwrap();
-
-        let content = fs::read_to_string(dir.path().join("src/solution.rs")).unwrap();
+        let content = assemble_template(&data);
+        assert!(content.contains("pub fn foo"));
         assert!(content.contains("fn example()"));
         assert!(content.contains("// your tests here"));
-    }
-
-    #[test]
-    fn solve_with_none_gives_clean_template() {
-        let dir = setup_dir();
-        run(dir.path(), false, None).unwrap();
-
-        let content = fs::read_to_string(dir.path().join("src/solution.rs")).unwrap();
-        assert_eq!(content, SOLUTION_TEMPLATE);
     }
 }

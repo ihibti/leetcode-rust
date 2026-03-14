@@ -19,10 +19,12 @@ struct Cli {
 enum Command {
     #[command(about = "Check environment and show setup recommendations")]
     Setup,
-    #[command(about = "Reset solution.rs to a clean template")]
+    #[command(about = "Start a new LeetCode problem")]
     Solve {
         #[arg(long, help = "Overwrite without confirmation")]
         force: bool,
+        #[arg(help = "LeetCode problem URL")]
+        url: Option<String>,
     },
     #[command(about = "Archive current solution to archive/")]
     Archive {
@@ -52,32 +54,7 @@ fn main() {
 
     let result = match cli.command {
         Command::Setup => setup::run(),
-        Command::Solve { force } => {
-            use std::io::{self, IsTerminal, Read};
-
-            let example_input = if io::stdin().is_terminal() {
-                println!("Paste LeetCode examples to auto-generate tests?");
-                println!("(paste examples, then Ctrl+D to confirm — or just press Enter to skip)\n");
-
-                let mut input = String::new();
-                let mut first_line = String::new();
-                if io::stdin().read_line(&mut first_line).is_ok() {
-                    if first_line.trim().is_empty() {
-                        None
-                    } else {
-                        input.push_str(&first_line);
-                        let _ = io::stdin().read_to_string(&mut input);
-                        Some(input)
-                    }
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            solve::run(&root, force, example_input.as_deref())
-        }
+        Command::Solve { force, url } => solve::run(&root, force, url.as_deref()),
         Command::Archive {
             name,
             difficulty,

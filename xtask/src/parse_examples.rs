@@ -21,6 +21,7 @@ pub fn parse_value(s: &str) -> Option<String> {
         let elements = split_top_level(inner, ',');
         let parsed: Vec<String> = elements
             .iter()
+            .filter(|e| !e.trim().is_empty())
             .map(|e| parse_value(e))
             .collect::<Option<Vec<_>>>()?;
         return Some(format!("vec![{}]", parsed.join(", ")));
@@ -720,5 +721,113 @@ Output: false";
 
         assert!(code.contains("fn example()"));
         assert!(code.contains("// your tests here"));
+    }
+
+    #[test]
+    fn value_trailing_comma_in_array() {
+        assert_eq!(
+            parse_value("[1,2,3,]"),
+            Some("vec![1, 2, 3]".into())
+        );
+    }
+
+    #[test]
+    fn value_large_integer() {
+        assert_eq!(
+            parse_value("2147483647"),
+            Some("2147483647".into())
+        );
+    }
+
+    #[test]
+    fn value_large_negative() {
+        assert_eq!(
+            parse_value("-2147483648"),
+            Some("-2147483648".into())
+        );
+    }
+
+    #[test]
+    fn value_nested_empty_arrays() {
+        assert_eq!(
+            parse_value("[[]]"),
+            Some("vec![vec![]]".into())
+        );
+    }
+
+    #[test]
+    fn value_float_one() {
+        assert_eq!(
+            parse_value("1.00000"),
+            Some("1.0f64".into())
+        );
+    }
+
+    #[test]
+    fn parse_whitespace_variations() {
+        let input = "\
+Example 1:
+
+Input:  nums =  [1, 2, 3] , target = 6
+Output:  [0, 1]  ";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 1);
+    }
+
+    #[test]
+    fn parse_only_explanation() {
+        let input = "\
+Example 1:
+
+Explanation: This should not parse.";
+
+        let result = parse_examples(input);
+        assert!(result.examples.is_empty());
+    }
+
+    #[test]
+    fn parse_boolean_output() {
+        let input = "\
+Example 1:
+
+Input: s = \"()\"
+Output: true
+
+Example 2:
+
+Input: s = \"(]\"
+Output: false";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 2);
+        assert_eq!(result.examples[0].output, "true");
+        assert_eq!(result.examples[1].output, "false");
+    }
+
+    #[test]
+    fn parse_nested_array_output() {
+        let input = "\
+Example 1:
+
+Input: matrix = [[1,2,3],[4,5,6],[7,8,9]]
+Output: [[7,4,1],[8,5,2],[9,6,3]]";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 1);
+        assert_eq!(
+            result.examples[0].output,
+            "vec![vec![7, 4, 1], vec![8, 5, 2], vec![9, 6, 3]]"
+        );
+    }
+
+    #[test]
+    fn generate_preserves_warnings() {
+        let result = ParseResult {
+            examples: vec![],
+            warnings: vec!["something went wrong".into()],
+        };
+        let code = generate_test_code(&result);
+        assert!(code.contains("fn example()"));
     }
 }

@@ -1,117 +1,73 @@
-# LeetCode Rust
+# LeetCode in Rust
 
-A local workspace for grinding LeetCode in Rust with full rust-analyzer support. No more fighting the web editor — get completions, docs on hover, type inference, and compiler errors in your own editor.
+A local workspace for solving LeetCode problems in Rust with full IDE support (rust-analyzer), solution archiving, and progress tracking. Built for 42 school students learning Rust from C.
 
-Built for C programmers learning Rust. Includes a C-to-Rust cheatsheet, curated resources, and a progressive problem sequence ordered by Rust concept.
+---
 
 ## Quick Start
 
 ```bash
-# 1. Clone
-git clone <this-repo>
-cd <repo-name>
-
-# 2. Check your environment
-cargo setup
-
-# 3. Start a new problem
-cargo solve
-
-# 4. Open src/solution.rs, paste your impl Solution { ... }
-
-# 5. Run your tests
-cargo test
-```
-
-## Workflow
-
-```
-cargo solve          Edit src/solution.rs          cargo test
-    |                        |                         |
-    v                        v                         v
- Template reset       Paste impl Solution        Run your tests
-                      Write #[test] cases
-                             |
-                             v
-                      cargo archive two-sum -d easy -t "array" -r "HashMap"
-                             |
-                             v
-                      Solution saved to archive/two_sum.rs
-                      Template reset, ready for next problem
-                             |
-                             v
-                      cargo progress
-                             |
-                             v
-                      See your stats, difficulty breakdown, concept coverage
+git clone <repo-url>
+cd leetcode-rust
+./lc setup              # checks your environment, tells you what to install
+cargo solve             # resets solution.rs, optionally generates tests from examples
+# open src/solution.rs, paste your solution
+cargo watch -x test     # live test feedback as you code
+cargo archive two-sum -d easy -t "array,hash-map" -r "iterators,entry-api"
+cargo progress          # see your stats
 ```
 
 ## Commands
 
 | Command | Description |
-|---------|-------------|
-| `cargo setup` | Check environment, recommend missing tools |
-| `cargo solve` | Reset `src/solution.rs` to a clean template |
-| `cargo solve --force` | Reset even if current solution has unsaved work |
-| `cargo archive <name>` | Save current solution to `archive/<name>.rs` |
-| `cargo archive <name> -d easy -t "array,hash-map" -r "iterators"` | Archive with metadata |
-| `cargo progress` | Show solving stats and concept coverage |
-| `cargo test` | Run tests for current solution |
-| `cargo clippy` | Get idiomatic Rust suggestions |
-| `cargo fmt` | Format your code |
+|---|---|
+| `./lc setup` | Check environment, print install commands for missing tools |
+| `./lc reset` | Restore source files to clean state (keeps archive) |
+| `./lc help` | Interactive help menu |
+| `cargo solve` | Start a new problem (reset template, optionally paste LeetCode examples for auto-generated tests) |
+| `cargo solve --force` | Overwrite solution.rs without confirmation |
+| `cargo archive <name>` | Save current solution to archive/ with metadata |
+| `cargo progress` | Show solving stats and progress |
+| `cargo watch -x test` | Auto-run tests on file changes |
+
+## Workflow
+
+```
+./lc setup → cargo solve → edit solution.rs → cargo watch -x test → cargo archive
+                ↑                                                        |
+                └────────────────────────────────────────────────────────┘
+```
+
+When you run `cargo solve`, you can optionally paste LeetCode examples to auto-generate test cases. Paste the examples (the `Example 1: Input: ... Output: ...` block), press Ctrl+D to confirm, and the tests appear in solution.rs ready to use. Or just press Enter to skip and write tests manually.
 
 ## Project Structure
 
 ```
 leetcode-rust/
+├── lc                   # Bootstrap script (setup, reset, help)
 ├── src/
-│   ├── lib.rs          # Crate root
-│   ├── types.rs        # ListNode, TreeNode, helper functions
-│   ├── macros.rs       # list![], tree![] test helpers
-│   └── solution.rs     # YOUR WORKING FILE
-├── xtask/              # CLI tooling (solve, archive, progress, setup)
-├── archive/            # Your solved problems
-│   └── examples/       # Reference solutions (look here for workflow examples)
+│   ├── lib.rs           # Crate root
+│   ├── solution.rs      # YOUR WORKING FILE
+│   ├── types.rs         # ListNode, TreeNode
+│   └── macros.rs        # list![], tree![] test helpers
+├── xtask/               # CLI tooling (solve, archive, progress)
+├── archive/             # Your solved problems
 └── docs/
-    ├── cheatsheet.md   # C-to-Rust patterns for LeetCode
-    ├── resources.md    # Curated learning resources
-    └── problem_sequence.md  # Problems ordered by Rust concept
+    ├── fundamentals.md  # Rust syntax quick reference (for C programmers)
+    ├── cheatsheet.md    # C-to-Rust patterns in depth
+    ├── resources.md     # Learning resources + neetcode roadmap
+    └── ai-tutor.md      # Setting up AI assistance
 ```
 
-## Test Helpers
+## Documentation
 
-The `list!` and `tree!` macros make writing test cases painless:
+- **[Fundamentals](docs/fundamentals.md)** — "What does `::` mean?" Quick answers to Rust syntax that surprises C programmers
+- **[Cheatsheet](docs/cheatsheet.md)** — Side-by-side C and Rust patterns for LeetCode
+- **[Resources](docs/resources.md)** — Curated learning resources + neetcode problem roadmap
+- **[AI Tutor](docs/ai-tutor.md)** — Set up Claude Code or other AI tools as your Rust tutor
 
-```rust
-// These are already imported in the solution.rs template:
-// use crate::types::*;           — ListNode, TreeNode, helpers
-// use crate::{list, tree};       — list![] and tree![] macros
+## Requirements
 
-#[test]
-fn test_merge() {
-    let result = Solution::merge_two_lists(list![1, 2, 4], list![1, 3, 4]);
-    assert_eq!(list_to_vec(result), vec![1, 1, 2, 3, 4, 4]);
-}
-
-#[test]
-fn test_tree() {
-    let root = tree![3, 9, 20, null, null, 15, 7];
-    assert_eq!(Solution::max_depth(root), 3);
-}
-```
-
-## For C Programmers
-
-If you're coming from C, start with:
-1. [`docs/cheatsheet.md`](docs/cheatsheet.md) — side-by-side C vs Rust patterns
-2. [`docs/problem_sequence.md`](docs/problem_sequence.md) — problems ordered to progressively introduce Rust concepts
-3. [`docs/resources.md`](docs/resources.md) — curated books, videos, and tools
-
-## Optional: Auto-test on Save
-
-Install `cargo-watch` for automatic test reruns whenever you save:
-
-```bash
-cargo install cargo-watch
-cargo watch -x test
-```
+- macOS or Linux
+- Rust toolchain (installed via [rustup](https://rustup.rs/))
+- Recommended: `cargo-watch` for live test feedback

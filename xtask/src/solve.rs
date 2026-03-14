@@ -3,6 +3,21 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+fn write_session(session_path: &Path, data: Option<&crate::leetcode::ProblemData>) -> Result<(), io::Error> {
+    let timestamp = Utc::now().to_rfc3339();
+    let content = match data {
+        Some(d) => {
+            let tags_json: Vec<String> = d.tags.iter().map(|t| format!("\"{}\"", t)).collect();
+            format!(
+                "{{\"timestamp\":\"{}\",\"slug\":\"{}\",\"difficulty\":\"{}\",\"tags\":[{}]}}",
+                timestamp, d.slug, d.difficulty, tags_json.join(",")
+            )
+        }
+        None => format!("{{\"timestamp\":\"{}\"}}", timestamp),
+    };
+    fs::write(session_path, content)
+}
+
 pub const SOLUTION_TEMPLATE: &str = r#"use crate::types::*;
 
 pub struct Solution;
@@ -52,7 +67,7 @@ pub fn run(root: &Path, force: bool, url: Option<&str>) -> Result<(), io::Error>
         }
     }
 
-    let content = match url {
+    let (content, problem_data) = match url {
         Some(url) => {
             match crate::leetcode::extract_slug(url) {
                 Some(slug) => {
@@ -60,12 +75,13 @@ pub fn run(root: &Path, force: bool, url: Option<&str>) -> Result<(), io::Error>
                     match crate::leetcode::fetch_problem(&slug) {
                         Ok(data) => {
                             eprintln!("Got it — {}", data.title);
-                            assemble_template(&data)
+                            let template = assemble_template(&data);
+                            (template, Some(data))
                         }
                         Err(e) => {
                             eprintln!("Couldn't fetch: {e}");
                             eprintln!("No worries, starting with a blank template.");
-                            SOLUTION_TEMPLATE.to_string()
+                            (SOLUTION_TEMPLATE.to_string(), None)
                         }
                     }
                 }
@@ -73,18 +89,18 @@ pub fn run(root: &Path, force: bool, url: Option<&str>) -> Result<(), io::Error>
                     eprintln!("That doesn't look like a LeetCode URL.");
                     eprintln!("Expected: https://leetcode.com/problems/<problem-name>/");
                     eprintln!("Starting with a blank template instead.");
-                    SOLUTION_TEMPLATE.to_string()
+                    (SOLUTION_TEMPLATE.to_string(), None)
                 }
             }
         }
         None => {
             println!("Tip: run cargo solve <url> to auto-generate tests from a LeetCode problem");
-            SOLUTION_TEMPLATE.to_string()
+            (SOLUTION_TEMPLATE.to_string(), None)
         }
     };
 
     fs::write(&solution_path, &content)?;
-    fs::write(&session_path, Utc::now().to_rfc3339())?;
+    write_session(&session_path, problem_data.as_ref())?;
 
     println!("Ready! Open src/solution.rs and start coding");
     Ok(())
@@ -155,6 +171,8 @@ mod tests {
         let data = crate::leetcode::ProblemData {
             slug: "two-sum".into(),
             title: "Two Sum".into(),
+            difficulty: "Easy".into(),
+            tags: vec!["Array".into(), "Hash Table".into()],
             examples_text: "\
 Example 1:
 
@@ -184,6 +202,8 @@ Output: [1,2]"
         let data = crate::leetcode::ProblemData {
             slug: "test".into(),
             title: "Test".into(),
+            difficulty: "Medium".into(),
+            tags: vec![],
             examples_text: "garbage that wont parse".into(),
             rust_snippet: "impl Solution {\n    pub fn foo(x: i32) -> i32 {\n        \n    }\n}".into(),
         };
@@ -192,5 +212,36 @@ Output: [1,2]"
         assert!(content.contains("pub fn foo"));
         assert!(content.contains("fn example()"));
         assert!(content.contains("// your tests here"));
+    }
+
+    #[test]
+    fn session_with_metadata() {
+        let dir = setup_dir();
+        let data = crate::leetcode::ProblemData {
+            slug: "two-sum".into(),
+            title: "Two Sum".into(),
+            difficulty: "Easy".into(),
+            tags: vec!["Array".into(), "Hash Table".into()],
+            examples_text: "".into(),
+            rust_snippet: "".into(),
+        };
+        write_session(&dir.path().join(".solve_session"), Some(&data)).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".solve_session")).unwrap();
+        assert!(content.contains("\"slug\":\"two-sum\""));
+        assert!(content.contains("\"difficulty\":\"Easy\""));
+        assert!(content.contains("\"Array\""));
+        assert!(content.contains("\"Hash Table\""));
+        assert!(content.contains("\"timestamp\":\""));
+    }
+
+    #[test]
+    fn session_without_metadata() {
+        let dir = setup_dir();
+        write_session(&dir.path().join(".solve_session"), None).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".solve_session")).unwrap();
+        assert!(content.contains("\"timestamp\":\""));
+        assert!(!content.contains("\"slug\""));
     }
 }

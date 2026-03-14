@@ -1,6 +1,5 @@
 mod archive;
 mod progress;
-mod setup;
 mod parse_examples;
 mod leetcode;
 mod solve;
@@ -17,8 +16,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    #[command(about = "Check environment and show setup recommendations")]
-    Setup,
     #[command(about = "Start a new LeetCode problem")]
     Solve {
         #[arg(long, help = "Overwrite without confirmation")]
@@ -53,7 +50,6 @@ fn main() {
     let root = workspace_root();
 
     let result = match cli.command {
-        Command::Setup => setup::run(),
         Command::Solve { force, url } => solve::run(&root, force, url.as_deref()),
         Command::Archive {
             name,

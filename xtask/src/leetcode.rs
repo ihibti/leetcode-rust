@@ -4,6 +4,8 @@ use std::fmt;
 pub struct ProblemData {
     pub slug: String,
     pub title: String,
+    pub difficulty: String,
+    pub tags: Vec<String>,
     pub examples_text: String,
     pub rust_snippet: String,
 }
@@ -183,7 +185,7 @@ pub fn extract_method_name(rust_snippet: &str) -> Option<String> {
 }
 
 pub fn fetch_problem(slug: &str) -> Result<ProblemData, FetchError> {
-    let query = r#"{"query":"query getQuestion($titleSlug: String!) { question(titleSlug: $titleSlug) { title content codeSnippets { langSlug code } } }","variables":{"titleSlug":"SLUG"}}"#;
+    let query = r#"{"query":"query getQuestion($titleSlug: String!) { question(titleSlug: $titleSlug) { title difficulty content topicTags { name } codeSnippets { langSlug code } } }","variables":{"titleSlug":"SLUG"}}"#;
     let body = query.replace("SLUG", slug);
 
     let agent = ureq::Agent::config_builder()
@@ -205,6 +207,11 @@ pub fn fetch_problem(slug: &str) -> Result<ProblemData, FetchError> {
     let title = extract_json_string(&response_body, "title")
         .ok_or_else(|| FetchError::InvalidResponse("missing title".into()))?;
 
+    let difficulty = extract_json_string(&response_body, "difficulty")
+        .unwrap_or_else(|| "unknown".into());
+
+    let tags = extract_topic_tags(&response_body);
+
     let content = extract_json_string(&response_body, "content")
         .ok_or_else(|| FetchError::InvalidResponse("missing content (premium problem?)".into()))?;
 
@@ -216,6 +223,8 @@ pub fn fetch_problem(slug: &str) -> Result<ProblemData, FetchError> {
     Ok(ProblemData {
         slug: slug.to_string(),
         title,
+        difficulty,
+        tags,
         examples_text,
         rust_snippet,
     })
@@ -277,6 +286,28 @@ fn extract_rust_snippet(json: &str) -> Option<String> {
     }
 
     if result.is_empty() { None } else { Some(result) }
+}
+
+fn extract_topic_tags(json: &str) -> Vec<String> {
+    let mut tags = Vec::new();
+    let Some(start) = json.find("\"topicTags\"") else { return tags };
+    let rest = &json[start..];
+    let Some(arr_start) = rest.find('[') else { return tags };
+    let Some(arr_end) = rest.find(']') else { return tags };
+    let arr = &rest[arr_start + 1..arr_end];
+
+    let mut search = arr;
+    while let Some(pos) = search.find("\"name\":\"") {
+        let name_start = pos + "\"name\":\"".len();
+        let remaining = &search[name_start..];
+        if let Some(end) = remaining.find('"') {
+            tags.push(remaining[..end].to_string());
+            search = &remaining[end + 1..];
+        } else {
+            break;
+        }
+    }
+    tags
 }
 
 #[cfg(test)]
@@ -580,5 +611,29 @@ mod tests {
     fn rust_snippet_empty_code() {
         let json = r#"{"langSlug":"rust","code":""}"#;
         assert_eq!(extract_rust_snippet(json), None);
+    }
+
+    #[test]
+    fn topic_tags_extraction() {
+        let json = r#"{"topicTags":[{"name":"Array","slug":"array"},{"name":"Hash Table","slug":"hash-table"}]}"#;
+        assert_eq!(extract_topic_tags(json), vec!["Array", "Hash Table"]);
+    }
+
+    #[test]
+    fn topic_tags_empty() {
+        let json = r#"{"topicTags":[]}"#;
+        assert_eq!(extract_topic_tags(json), Vec::<String>::new());
+    }
+
+    #[test]
+    fn topic_tags_missing() {
+        let json = r#"{"data":{}}"#;
+        assert_eq!(extract_topic_tags(json), Vec::<String>::new());
+    }
+
+    #[test]
+    fn difficulty_extraction() {
+        let json = r#"{"difficulty":"Easy","title":"Two Sum"}"#;
+        assert_eq!(extract_json_string(json, "difficulty"), Some("Easy".into()));
     }
 }

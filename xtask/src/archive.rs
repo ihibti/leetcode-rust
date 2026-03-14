@@ -5,6 +5,54 @@ use std::path::Path;
 
 use crate::solve::SOLUTION_TEMPLATE;
 
+struct SessionMeta {
+    difficulty: Option<String>,
+    tags: Option<String>,
+}
+
+fn read_session_meta(session_path: &Path) -> SessionMeta {
+    let Ok(content) = fs::read_to_string(session_path) else {
+        return SessionMeta { difficulty: None, tags: None };
+    };
+
+    let difficulty = extract_field(&content, "difficulty");
+    let tags = extract_tags_field(&content);
+
+    SessionMeta { difficulty, tags }
+}
+
+fn extract_field(json: &str, key: &str) -> Option<String> {
+    let pattern = format!("\"{}\":\"", key);
+    let start = json.find(&pattern)? + pattern.len();
+    let rest = &json[start..];
+    let end = rest.find('"')?;
+    let value = &rest[..end];
+    if value.is_empty() || value == "unknown" {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+fn extract_tags_field(json: &str) -> Option<String> {
+    let start = json.find("\"tags\":[")?;
+    let rest = &json[start + "\"tags\":[".len()..];
+    let end = rest.find(']')?;
+    let arr = &rest[..end];
+    if arr.is_empty() {
+        return None;
+    }
+    let tags: Vec<&str> = arr.split(',')
+        .map(|s| s.trim().trim_matches('"'))
+        .filter(|s| !s.is_empty())
+        .collect();
+    if tags.is_empty() {
+        None
+    } else {
+        Some(tags.join(","))
+    }
+}
+
 pub fn run(
     root: &Path,
     name: &str,
@@ -23,6 +71,10 @@ pub fn run(
             "solution.rs matches template — nothing to archive",
         ));
     }
+
+    let meta = read_session_meta(&session_path);
+    let difficulty = difficulty.or(meta.difficulty);
+    let tags = tags.or(meta.tags);
 
     let filename = normalize_name(name);
     let archive_path = archive_dir.join(format!("{filename}.rs"));
@@ -68,10 +120,12 @@ pub fn normalize_name(name: &str) -> String {
 }
 
 fn calculate_time(session_path: &Path) -> String {
-    let Ok(timestamp_str) = fs::read_to_string(session_path) else {
+    let Ok(raw) = fs::read_to_string(session_path) else {
         return "unknown".to_string();
     };
-    let Ok(start) = timestamp_str.trim().parse::<DateTime<Utc>>() else {
+    let timestamp_str = extract_field(&raw, "timestamp")
+        .unwrap_or_else(|| raw.trim().to_string());
+    let Ok(start) = timestamp_str.parse::<DateTime<Utc>>() else {
         return "unknown".to_string();
     };
     let elapsed = Utc::now().signed_duration_since(start);
@@ -151,5 +205,79 @@ mod tests {
 
         let result = run(dir.path(), "test", None, None, None);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn read_meta_from_session() {
+        let dir = setup_dir();
+        fs::write(
+            dir.path().join(".solve_session"),
+            r#"{"timestamp":"2026-01-01T00:00:00Z","slug":"two-sum","difficulty":"Easy","tags":["Array","Hash Table"]}"#,
+        ).unwrap();
+
+        let meta = read_session_meta(&dir.path().join(".solve_session"));
+        assert_eq!(meta.difficulty, Some("Easy".into()));
+        assert_eq!(meta.tags, Some("Array,Hash Table".into()));
+    }
+
+    #[test]
+    fn read_meta_missing_file() {
+        let dir = setup_dir();
+        let meta = read_session_meta(&dir.path().join(".solve_session"));
+        assert_eq!(meta.difficulty, None);
+        assert_eq!(meta.tags, None);
+    }
+
+    #[test]
+    fn read_meta_old_format() {
+        let dir = setup_dir();
+        fs::write(
+            dir.path().join(".solve_session"),
+            "2026-01-01T00:00:00Z",
+        ).unwrap();
+
+        let meta = read_session_meta(&dir.path().join(".solve_session"));
+        assert_eq!(meta.difficulty, None);
+        assert_eq!(meta.tags, None);
+    }
+
+    #[test]
+    fn archive_uses_session_metadata() {
+        let dir = setup_dir();
+        fs::write(
+            dir.path().join(".solve_session"),
+            r#"{"timestamp":"2026-01-01T00:00:00Z","slug":"two-sum","difficulty":"Easy","tags":["Array","Hash Table"]}"#,
+        ).unwrap();
+
+        run(dir.path(), "two-sum", None, None, None).unwrap();
+
+        let archived = fs::read_to_string(dir.path().join("archive/two_sum.rs")).unwrap();
+        assert!(archived.contains("//! Difficulty: Easy"));
+        assert!(archived.contains("//! Tags: Array,Hash Table"));
+    }
+
+    #[test]
+    fn archive_cli_overrides_session() {
+        let dir = setup_dir();
+        fs::write(
+            dir.path().join(".solve_session"),
+            r#"{"timestamp":"2026-01-01T00:00:00Z","slug":"two-sum","difficulty":"Easy","tags":["Array"]}"#,
+        ).unwrap();
+
+        run(dir.path(), "two-sum", Some("hard".into()), Some("dp".into()), None).unwrap();
+
+        let archived = fs::read_to_string(dir.path().join("archive/two_sum.rs")).unwrap();
+        assert!(archived.contains("//! Difficulty: hard"));
+        assert!(archived.contains("//! Tags: dp"));
+    }
+
+    #[test]
+    fn archive_no_session_no_flags() {
+        let dir = setup_dir();
+        run(dir.path(), "test", None, None, None).unwrap();
+
+        let archived = fs::read_to_string(dir.path().join("archive/test.rs")).unwrap();
+        assert!(!archived.contains("//! Difficulty:"));
+        assert!(!archived.contains("//! Tags:"));
     }
 }

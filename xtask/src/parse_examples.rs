@@ -69,6 +69,90 @@ fn split_top_level(s: &str, delimiter: char) -> Vec<String> {
     result
 }
 
+pub fn parse_input_line(s: &str) -> Option<Vec<(String, String)>> {
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+
+    let mut params = Vec::new();
+    let segments = split_param_assignments(s);
+
+    for segment in &segments {
+        let segment = segment.trim();
+        if segment.is_empty() {
+            continue;
+        }
+
+        let eq_pos = segment.find('=')?;
+
+        let name = segment[..eq_pos].trim();
+        let value = segment[eq_pos + 1..].trim();
+
+        let rust_value = parse_value(value)?;
+        params.push((name.to_string(), rust_value));
+    }
+
+    if params.is_empty() {
+        None
+    } else {
+        Some(params)
+    }
+}
+
+fn split_param_assignments(s: &str) -> Vec<String> {
+    let mut segments = Vec::new();
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut current = String::new();
+    let chars: Vec<char> = s.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        let ch = chars[i];
+
+        if ch == '"' {
+            in_string = !in_string;
+            current.push(ch);
+            i += 1;
+        } else if in_string {
+            current.push(ch);
+            i += 1;
+        } else if ch == '[' {
+            depth += 1;
+            current.push(ch);
+            i += 1;
+        } else if ch == ']' {
+            depth -= 1;
+            current.push(ch);
+            i += 1;
+        } else if ch == ',' && depth == 0 {
+            let rest = s[i + 1..].trim_start();
+            let looks_like_param = rest.contains('=')
+                && rest.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_');
+            if looks_like_param {
+                segments.push(current.trim().to_string());
+                current = String::new();
+                i += 1;
+            } else {
+                current.push(ch);
+                i += 1;
+            }
+        } else {
+            current.push(ch);
+            i += 1;
+        }
+    }
+
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        segments.push(trimmed);
+    }
+
+    segments
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,5 +317,79 @@ mod tests {
     fn split_empty() {
         let result: Vec<String> = split_top_level("", ',');
         assert!(result.is_empty() || result == vec![""]);
+    }
+
+    #[test]
+    fn input_single_param() {
+        let result = parse_input_line("nums = [1,2,3]").unwrap();
+        assert_eq!(result, vec![
+            ("nums".into(), "vec![1, 2, 3]".into()),
+        ]);
+    }
+
+    #[test]
+    fn input_multiple_params() {
+        let result = parse_input_line("nums1 = [1,3], nums2 = [2]").unwrap();
+        assert_eq!(result, vec![
+            ("nums1".into(), "vec![1, 3]".into()),
+            ("nums2".into(), "vec![2]".into()),
+        ]);
+    }
+
+    #[test]
+    fn input_scalar_params() {
+        let result = parse_input_line("x = 5, y = 10").unwrap();
+        assert_eq!(result, vec![
+            ("x".into(), "5".into()),
+            ("y".into(), "10".into()),
+        ]);
+    }
+
+    #[test]
+    fn input_string_param() {
+        let result = parse_input_line("s = \"abc\"").unwrap();
+        assert_eq!(result, vec![
+            ("s".into(), "String::from(\"abc\")".into()),
+        ]);
+    }
+
+    #[test]
+    fn input_underscore_name() {
+        let result = parse_input_line("linked_list = [1,2,3]").unwrap();
+        assert_eq!(result, vec![
+            ("linked_list".into(), "vec![1, 2, 3]".into()),
+        ]);
+    }
+
+    #[test]
+    fn input_mixed_types() {
+        let result = parse_input_line("nums = [1,2,3], target = 6").unwrap();
+        assert_eq!(result, vec![
+            ("nums".into(), "vec![1, 2, 3]".into()),
+            ("target".into(), "6".into()),
+        ]);
+    }
+
+    #[test]
+    fn input_no_spaces_around_equals() {
+        let result = parse_input_line("n=5").unwrap();
+        assert_eq!(result, vec![
+            ("n".into(), "5".into()),
+        ]);
+    }
+
+    #[test]
+    fn input_empty() {
+        let result = parse_input_line("");
+        assert!(result.is_none() || result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn input_string_with_comma() {
+        let result = parse_input_line("s = \"a,b\", t = \"c\"").unwrap();
+        assert_eq!(result, vec![
+            ("s".into(), "String::from(\"a,b\")".into()),
+            ("t".into(), "String::from(\"c\")".into()),
+        ]);
     }
 }

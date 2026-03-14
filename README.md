@@ -9,9 +9,9 @@ A local workspace for solving LeetCode problems in Rust with full IDE support (r
 ```bash
 git clone https://github.com/ihibti/leetcode-rust.git
 cd leetcode-rust
-./lc setup              # checks your environment, tells you what to install
-cargo solve             # resets solution.rs, optionally generates tests from examples
-# open src/solution.rs, paste your solution
+./lc setup                                              # checks your environment
+cargo solve https://leetcode.com/problems/two-sum/      # fetches problem, generates tests
+# open src/solution.rs — impl block and tests are ready
 cargo watch -x test     # live test feedback as you code
 cargo archive two-sum -d easy -t "array,hash-map" -r "iterators,entry-api"
 cargo progress          # see your stats
@@ -23,8 +23,8 @@ cargo progress          # see your stats
 |---|---|
 | `./lc setup` | Check environment, print install commands for missing tools |
 | `./lc reset` | Restore source files to clean state (keeps archive) |
-| `./lc help` | Interactive help menu |
-| `cargo solve` | Start a new problem (reset template, optionally paste LeetCode examples for auto-generated tests) |
+| `cargo solve <url>` | Fetch problem from LeetCode, generate impl skeleton and tests |
+| `cargo solve` | Start with a blank template (no URL) |
 | `cargo solve --force` | Overwrite solution.rs without confirmation |
 | `cargo archive <name>` | Save current solution to archive/ with metadata |
 | `cargo progress` | Show solving stats and progress |
@@ -33,18 +33,20 @@ cargo progress          # see your stats
 ## Workflow
 
 ```
-./lc setup → cargo solve → edit solution.rs → cargo watch -x test → cargo archive
-                ↑                                                        |
-                └────────────────────────────────────────────────────────┘
+./lc setup → cargo solve <url> → edit solution.rs → cargo watch -x test → cargo archive
+                  ↑                                                            |
+                  └────────────────────────────────────────────────────────────┘
 ```
 
-When you run `cargo solve`, you can optionally paste LeetCode examples to auto-generate test cases. Paste the examples (the `Example 1: Input: ... Output: ...` block), press Ctrl+D to confirm, and the tests appear in solution.rs ready to use. Or just press Enter to skip and write tests manually.
+When you run `cargo solve <url>`, it fetches the problem from LeetCode, generates the `impl Solution` skeleton and test cases from the examples. Open `src/solution.rs` — the method signature and tests are ready, just fill in the implementation.
+
+Running `cargo solve` without a URL gives a blank template.
 
 ## Project Structure
 
 ```
 leetcode-rust/
-├── lc                   # Bootstrap script (setup, reset, help)
+├── lc                   # Bootstrap script (setup, reset)
 ├── src/
 │   ├── lib.rs           # Crate root
 │   ├── solution.rs      # YOUR WORKING FILE

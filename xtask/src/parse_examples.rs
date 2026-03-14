@@ -252,7 +252,7 @@ fn parse_single_example(block: &str) -> Option<Example> {
     Some(Example { params, output })
 }
 
-pub fn generate_test_code(result: &ParseResult) -> String {
+pub fn generate_test_code(result: &ParseResult, method_name: Option<&str>) -> String {
     let mut code = String::new();
 
     code.push_str("#[cfg(test)]\nmod tests {\n");
@@ -276,13 +276,24 @@ pub fn generate_test_code(result: &ParseResult) -> String {
 
             let param_names: Vec<&str> = example.params.iter().map(|(n, _)| n.as_str()).collect();
             let args = param_names.join(", ");
-            code.push_str(&format!(
-                "        // TODO: uncomment and replace method_name with your method\n"
-            ));
-            code.push_str(&format!(
-                "        // let result = Solution::method_name({args});\n"
-            ));
-            code.push_str("        // assert_eq!(result, expected);\n");
+
+            match method_name {
+                Some(name) => {
+                    code.push_str(&format!(
+                        "        let result = Solution::{name}({args});\n"
+                    ));
+                    code.push_str("        assert_eq!(result, expected);\n");
+                }
+                None => {
+                    code.push_str(
+                        "        // TODO: uncomment and replace method_name with your method\n"
+                    );
+                    code.push_str(&format!(
+                        "        // let result = Solution::method_name({args});\n"
+                    ));
+                    code.push_str("        // assert_eq!(result, expected);\n");
+                }
+            }
             code.push_str("    }\n");
         }
     }
@@ -684,7 +695,7 @@ Input: nums = [2,7,11,15], target = 9
 Output: [0,1]";
 
         let result = parse_examples(input);
-        let code = generate_test_code(&result);
+        let code = generate_test_code(&result, None);
 
         assert!(code.contains("#[cfg(test)]"));
         assert!(code.contains("fn example_1()"));
@@ -708,7 +719,7 @@ Input: x = -121
 Output: false";
 
         let result = parse_examples(input);
-        let code = generate_test_code(&result);
+        let code = generate_test_code(&result, None);
 
         assert!(code.contains("fn example_1()"));
         assert!(code.contains("fn example_2()"));
@@ -717,7 +728,7 @@ Output: false";
     #[test]
     fn generate_empty_gives_default() {
         let result = parse_examples("");
-        let code = generate_test_code(&result);
+        let code = generate_test_code(&result, None);
 
         assert!(code.contains("fn example()"));
         assert!(code.contains("// your tests here"));
@@ -827,7 +838,51 @@ Output: [[7,4,1],[8,5,2],[9,6,3]]";
             examples: vec![],
             warnings: vec!["something went wrong".into()],
         };
-        let code = generate_test_code(&result);
+        let code = generate_test_code(&result, None);
         assert!(code.contains("fn example()"));
+    }
+
+    #[test]
+    fn generate_with_method_name() {
+        let input = "\
+Example 1:
+
+Input: nums = [2,7,11,15], target = 9
+Output: [0,1]";
+
+        let result = parse_examples(input);
+        let code = generate_test_code(&result, Some("two_sum"));
+
+        assert!(code.contains("fn example_1()"));
+        assert!(code.contains("let nums = vec![2, 7, 11, 15];"));
+        assert!(code.contains("let target = 9;"));
+        assert!(code.contains("let expected = vec![0, 1];"));
+        assert!(code.contains("let result = Solution::two_sum(nums, target);"));
+        assert!(code.contains("assert_eq!(result, expected);"));
+        assert!(!code.contains("// TODO"));
+    }
+
+    #[test]
+    fn generate_without_method_name() {
+        let input = "\
+Example 1:
+
+Input: x = 121
+Output: true";
+
+        let result = parse_examples(input);
+        let code = generate_test_code(&result, None);
+
+        assert!(code.contains("// TODO"));
+        assert!(code.contains("// let result = Solution::method_name(x);"));
+    }
+
+    #[test]
+    fn generate_empty_with_method_name() {
+        let result = parse_examples("");
+        let code = generate_test_code(&result, Some("two_sum"));
+
+        assert!(code.contains("fn example()"));
+        assert!(code.contains("// your tests here"));
     }
 }

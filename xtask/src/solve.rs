@@ -48,7 +48,7 @@ pub fn run(root: &Path, force: bool, example_input: Option<&str>) -> Result<(), 
             } else if result.examples.is_empty() {
                 None
             } else {
-                Some(crate::parse_examples::generate_test_code(&result))
+                Some(crate::parse_examples::generate_test_code(&result, None))
             }
         }
         _ => None,

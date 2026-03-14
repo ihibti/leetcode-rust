@@ -153,6 +153,143 @@ fn split_param_assignments(s: &str) -> Vec<String> {
     segments
 }
 
+pub struct Example {
+    pub params: Vec<(String, String)>,
+    pub output: String,
+}
+
+pub struct ParseResult {
+    pub examples: Vec<Example>,
+    pub warnings: Vec<String>,
+}
+
+pub fn parse_examples(input: &str) -> ParseResult {
+    let mut examples = Vec::new();
+    let mut warnings = Vec::new();
+
+    let input = input.trim();
+    if input.is_empty() {
+        return ParseResult { examples, warnings };
+    }
+
+    let blocks = split_example_blocks(input);
+    if blocks.is_empty() {
+        return ParseResult { examples, warnings };
+    }
+
+    for (idx, block) in blocks.iter().enumerate() {
+        match parse_single_example(block) {
+            Some(example) => examples.push(example),
+            None => warnings.push(format!("Skipped example {} (couldn't parse)", idx + 1)),
+        }
+    }
+
+    ParseResult { examples, warnings }
+}
+
+fn split_example_blocks(input: &str) -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut current = String::new();
+    let mut found_any = false;
+
+    for line in input.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("Example ") && trimmed.ends_with(':') {
+            if found_any && !current.trim().is_empty() {
+                blocks.push(current.trim().to_string());
+            }
+            current = String::new();
+            found_any = true;
+        } else if found_any {
+            current.push_str(line);
+            current.push('\n');
+        }
+    }
+
+    if found_any && !current.trim().is_empty() {
+        blocks.push(current.trim().to_string());
+    }
+
+    blocks
+}
+
+fn parse_single_example(block: &str) -> Option<Example> {
+    let mut input_lines = Vec::new();
+    let mut output_line = None;
+    let mut in_input = false;
+
+    for line in block.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.starts_with("Input:") {
+            in_input = true;
+            let rest = trimmed.strip_prefix("Input:")?.trim();
+            if !rest.is_empty() {
+                input_lines.push(rest.to_string());
+            }
+        } else if trimmed.starts_with("Output:") {
+            in_input = false;
+            let rest = trimmed.strip_prefix("Output:")?.trim();
+            output_line = Some(rest.to_string());
+        } else if trimmed.starts_with("Explanation:") {
+            in_input = false;
+        } else if in_input && !trimmed.is_empty() {
+            input_lines.push(trimmed.to_string());
+        }
+    }
+
+    let output_str = output_line?;
+    let output = parse_value(&output_str)?;
+
+    let combined_input = input_lines.join(", ");
+    let params = parse_input_line(&combined_input)?;
+
+    if params.is_empty() {
+        return None;
+    }
+
+    Some(Example { params, output })
+}
+
+pub fn generate_test_code(result: &ParseResult) -> String {
+    let mut code = String::new();
+
+    code.push_str("#[cfg(test)]\nmod tests {\n");
+    code.push_str("    use super::*;\n");
+    code.push_str("    use crate::{list, tree};\n");
+
+    if result.examples.is_empty() {
+        code.push_str("\n    #[test]\n");
+        code.push_str("    fn example() {\n");
+        code.push_str("        // your tests here\n");
+        code.push_str("    }\n");
+    } else {
+        for (i, example) in result.examples.iter().enumerate() {
+            code.push_str(&format!("\n    #[test]\n"));
+            code.push_str(&format!("    fn example_{}() {{\n", i + 1));
+
+            for (name, value) in &example.params {
+                code.push_str(&format!("        let {name} = {value};\n"));
+            }
+            code.push_str(&format!("        let expected = {};\n", example.output));
+
+            let param_names: Vec<&str> = example.params.iter().map(|(n, _)| n.as_str()).collect();
+            let args = param_names.join(", ");
+            code.push_str(&format!(
+                "        // TODO: uncomment and replace method_name with your method\n"
+            ));
+            code.push_str(&format!(
+                "        // let result = Solution::method_name({args});\n"
+            ));
+            code.push_str("        // assert_eq!(result, expected);\n");
+            code.push_str("    }\n");
+        }
+    }
+
+    code.push_str("}\n");
+    code
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,5 +528,197 @@ mod tests {
             ("s".into(), "String::from(\"a,b\")".into()),
             ("t".into(), "String::from(\"c\")".into()),
         ]);
+    }
+
+    #[test]
+    fn parse_single_example() {
+        let input = "\
+Example 1:
+
+Input: nums = [2,7,11,15], target = 9
+Output: [0,1]
+Explanation: Because nums[0] + nums[1] == 9, we return [0, 1].";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 1);
+        assert_eq!(result.warnings.len(), 0);
+        assert_eq!(result.examples[0].params, vec![
+            ("nums".into(), "vec![2, 7, 11, 15]".into()),
+            ("target".into(), "9".into()),
+        ]);
+        assert_eq!(result.examples[0].output, "vec![0, 1]");
+    }
+
+    #[test]
+    fn parse_two_examples() {
+        let input = "\
+Example 1:
+
+Input: nums1 = [1,3], nums2 = [2]
+Output: 2.00000
+Explanation: merged array = [1,2,3] and median is 2.
+
+Example 2:
+
+Input: nums1 = [1,2], nums2 = [3,4]
+Output: 2.50000
+Explanation: merged array = [1,2,3,4] and median is (2 + 3) / 2 = 2.5.";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 2);
+        assert_eq!(result.examples[0].output, "2.0f64");
+        assert_eq!(result.examples[1].output, "2.5f64");
+    }
+
+    #[test]
+    fn parse_no_explanation() {
+        let input = "\
+Example 1:
+
+Input: n = 5
+Output: true";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 1);
+        assert_eq!(result.examples[0].output, "true");
+    }
+
+    #[test]
+    fn parse_three_examples() {
+        let input = "\
+Example 1:
+
+Input: x = 121
+Output: true
+
+Example 2:
+
+Input: x = -121
+Output: false
+
+Example 3:
+
+Input: x = 10
+Output: false";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 3);
+    }
+
+    #[test]
+    fn parse_multiline_input() {
+        let input = "\
+Example 1:
+
+Input: nums = [3,2,4]
+target = 6
+Output: [1,2]";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 1);
+        assert_eq!(result.examples[0].params.len(), 2);
+    }
+
+    #[test]
+    fn parse_empty_input() {
+        let result = parse_examples("");
+        assert!(result.examples.is_empty());
+    }
+
+    #[test]
+    fn parse_garbage() {
+        let result = parse_examples("this is not a leetcode example at all");
+        assert!(result.examples.is_empty());
+    }
+
+    #[test]
+    fn parse_partial_failure() {
+        let input = "\
+Example 1:
+
+Input: nums = [1,2,3]
+Output: 6
+
+Example 2:
+
+Input: ???weird???
+Output: ???";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 1);
+        assert!(result.warnings.len() >= 1);
+    }
+
+    #[test]
+    fn parse_input_missing_output() {
+        let input = "\
+Example 1:
+
+Input: n = 5";
+
+        let result = parse_examples(input);
+        assert!(result.examples.is_empty());
+        assert!(result.warnings.len() >= 1);
+    }
+
+    #[test]
+    fn parse_string_output() {
+        let input = "\
+Example 1:
+
+Input: s = \"abc\"
+Output: \"cba\"";
+
+        let result = parse_examples(input);
+        assert_eq!(result.examples.len(), 1);
+        assert_eq!(result.examples[0].output, "String::from(\"cba\")");
+    }
+
+    #[test]
+    fn generate_basic_test_code() {
+        let input = "\
+Example 1:
+
+Input: nums = [2,7,11,15], target = 9
+Output: [0,1]";
+
+        let result = parse_examples(input);
+        let code = generate_test_code(&result);
+
+        assert!(code.contains("#[cfg(test)]"));
+        assert!(code.contains("fn example_1()"));
+        assert!(code.contains("let nums = vec![2, 7, 11, 15];"));
+        assert!(code.contains("let target = 9;"));
+        assert!(code.contains("let expected = vec![0, 1];"));
+        assert!(code.contains("// TODO"));
+    }
+
+    #[test]
+    fn generate_multiple_tests() {
+        let input = "\
+Example 1:
+
+Input: x = 121
+Output: true
+
+Example 2:
+
+Input: x = -121
+Output: false";
+
+        let result = parse_examples(input);
+        let code = generate_test_code(&result);
+
+        assert!(code.contains("fn example_1()"));
+        assert!(code.contains("fn example_2()"));
+    }
+
+    #[test]
+    fn generate_empty_gives_default() {
+        let result = parse_examples("");
+        let code = generate_test_code(&result);
+
+        assert!(code.contains("fn example()"));
+        assert!(code.contains("// your tests here"));
     }
 }

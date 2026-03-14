@@ -23,11 +23,15 @@ cargo solve https://leetcode.com/problems/two-sum/
 cargo watch -x test
 
 # When you're done, save it to your archive
-# Only the name is required — flags are optional
+# Only the name is required — flags are optional but feed into cargo progress
+# so you can track your weak spots over time
 cargo archive two-sum
 cargo archive two-sum -d easy                          # add difficulty
 cargo archive two-sum -d easy -t "array,hash-map"      # add LeetCode tags
 cargo archive two-sum -d easy -t "array" -r "HashMap"   # add Rust concepts you practiced
+
+# See your stats
+cargo progress
 ```
 
 ## Commands

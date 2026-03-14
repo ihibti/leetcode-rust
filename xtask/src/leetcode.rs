@@ -1,3 +1,29 @@
+use std::fmt;
+use std::io::Read;
+
+pub struct ProblemData {
+    pub slug: String,
+    pub title: String,
+    pub examples_text: String,
+    pub rust_snippet: String,
+}
+
+pub enum FetchError {
+    Network(String),
+    InvalidResponse(String),
+    NoRustSnippet,
+}
+
+impl fmt::Display for FetchError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FetchError::Network(msg) => write!(f, "Network error: {msg}"),
+            FetchError::InvalidResponse(msg) => write!(f, "Invalid response: {msg}"),
+            FetchError::NoRustSnippet => write!(f, "No Rust code snippet found for this problem"),
+        }
+    }
+}
+
 pub fn extract_slug(url: &str) -> Option<String> {
     let url = url.trim();
     if url.is_empty() {
@@ -154,6 +180,103 @@ pub fn extract_method_name(rust_snippet: &str) -> Option<String> {
         }
     }
     None
+}
+
+pub fn fetch_problem(slug: &str) -> Result<ProblemData, FetchError> {
+    let query = r#"{"query":"query getQuestion($titleSlug: String!) { question(titleSlug: $titleSlug) { title content codeSnippets { langSlug code } } }","variables":{"titleSlug":"SLUG"}}"#;
+    let body = query.replace("SLUG", slug);
+
+    let agent = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(10)))
+        .user_agent("leetcode-rust-workspace/0.1")
+        .build()
+        .new_agent();
+
+    let mut response = agent.post("https://leetcode.com/graphql")
+        .header("Content-Type", "application/json")
+        .send(body.as_bytes())
+        .map_err(|e| FetchError::Network(e.to_string()))?;
+
+    let response_body = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|e| FetchError::Network(e.to_string()))?;
+
+    let title = extract_json_string(&response_body, "title")
+        .ok_or_else(|| FetchError::InvalidResponse("missing title".into()))?;
+
+    let content = extract_json_string(&response_body, "content")
+        .ok_or_else(|| FetchError::InvalidResponse("missing content (premium problem?)".into()))?;
+
+    let rust_snippet = extract_rust_snippet(&response_body)
+        .ok_or(FetchError::NoRustSnippet)?;
+
+    let examples_text = strip_html(&content);
+
+    Ok(ProblemData {
+        slug: slug.to_string(),
+        title,
+        examples_text,
+        rust_snippet,
+    })
+}
+
+fn extract_json_string(json: &str, key: &str) -> Option<String> {
+    let pattern = format!("\"{}\":\"", key);
+    let start = json.find(&pattern)? + pattern.len();
+    let rest = &json[start..];
+    let mut result = String::new();
+    let mut chars = rest.chars();
+    loop {
+        match chars.next()? {
+            '\\' => match chars.next()? {
+                '"' => result.push('"'),
+                '\\' => result.push('\\'),
+                'n' => result.push('\n'),
+                't' => result.push('\t'),
+                '/' => result.push('/'),
+                other => {
+                    result.push('\\');
+                    result.push(other);
+                }
+            },
+            '"' => break,
+            c => result.push(c),
+        }
+    }
+    Some(result)
+}
+
+fn extract_rust_snippet(json: &str) -> Option<String> {
+    let marker = "\"langSlug\":\"rust\"";
+    let lang_pos = json.find(marker)?;
+
+    let code_pattern = "\"code\":\"";
+    let code_pos = json[lang_pos..].find(code_pattern)?;
+    let code_start = lang_pos + code_pos + code_pattern.len();
+    let rest = &json[code_start..];
+
+    let mut result = String::new();
+    let mut chars = rest.chars();
+    loop {
+        match chars.next()? {
+            '\\' => match chars.next()? {
+                '"' => result.push('"'),
+                '\\' => result.push('\\'),
+                'n' => result.push('\n'),
+                't' => result.push('\t'),
+                '/' => result.push('/'),
+                other => {
+                    result.push('\\');
+                    result.push(other);
+                }
+            },
+            '"' => break,
+            c => result.push(c),
+        }
+    }
+
+    if result.is_empty() { None } else { Some(result) }
 }
 
 #[cfg(test)]
@@ -400,5 +523,62 @@ mod tests {
             extract_method_name("impl Solution {\n    pub fn longest_common_prefix<'a>(strs: &[&'a str]) -> &'a str {\n        \n    }\n}"),
             Some("longest_common_prefix".into())
         );
+    }
+
+    #[test]
+    fn json_extract_title() {
+        let json = r#"{"data":{"question":{"title":"Two Sum","content":"<p>desc</p>"}}}"#;
+        assert_eq!(extract_json_string(json, "title"), Some("Two Sum".into()));
+    }
+
+    #[test]
+    fn json_extract_with_escapes() {
+        let json = r#"{"data":{"question":{"title":"Contains \"quotes\"","content":"text"}}}"#;
+        assert_eq!(
+            extract_json_string(json, "title"),
+            Some("Contains \"quotes\"".into())
+        );
+    }
+
+    #[test]
+    fn json_extract_missing_key() {
+        let json = r#"{"data":{}}"#;
+        assert_eq!(extract_json_string(json, "title"), None);
+    }
+
+    #[test]
+    fn json_extract_content_with_newlines() {
+        let json = r#"{"content":"line1\nline2"}"#;
+        assert_eq!(
+            extract_json_string(json, "content"),
+            Some("line1\nline2".into())
+        );
+    }
+
+    #[test]
+    fn rust_snippet_extraction() {
+        let json = r#"{"codeSnippets":[{"lang":"C++","langSlug":"cpp","code":"class Solution {}"},{"lang":"Rust","langSlug":"rust","code":"impl Solution {\n    pub fn two_sum(nums: Vec<i32>, target: i32) -> Vec<i32> {\n        \n    }\n}"}]}"#;
+        let snippet = extract_rust_snippet(json).unwrap();
+        assert!(snippet.contains("pub fn two_sum"));
+        assert!(snippet.contains("impl Solution"));
+    }
+
+    #[test]
+    fn rust_snippet_code_after_lang() {
+        let json = r#"{"langSlug":"rust","code":"impl Solution {\n    pub fn foo() {}\n}"}"#;
+        let snippet = extract_rust_snippet(json).unwrap();
+        assert!(snippet.contains("pub fn foo"));
+    }
+
+    #[test]
+    fn rust_snippet_missing() {
+        let json = r#"{"codeSnippets":[{"lang":"C++","langSlug":"cpp","code":"class Solution {}"}]}"#;
+        assert_eq!(extract_rust_snippet(json), None);
+    }
+
+    #[test]
+    fn rust_snippet_empty_code() {
+        let json = r#"{"langSlug":"rust","code":""}"#;
+        assert_eq!(extract_rust_snippet(json), None);
     }
 }

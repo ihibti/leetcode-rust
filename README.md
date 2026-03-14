@@ -15,10 +15,19 @@ cd leetcode-rust
 ## Solve a Problem
 
 ```bash
+# Fetch the problem — generates the impl skeleton and test cases
 cargo solve https://leetcode.com/problems/two-sum/
-# open src/solution.rs — impl block and tests are ready
+
+# Open src/solution.rs and fill in your solution
+# Tests auto-rerun on save with cargo-watch
 cargo watch -x test
-cargo archive two-sum -d easy -t "array,hash-map" -r "iterators,entry-api"
+
+# When you're done, save it to your archive
+# Only the name is required — flags are optional
+cargo archive two-sum
+cargo archive two-sum -d easy                          # add difficulty
+cargo archive two-sum -d easy -t "array,hash-map"      # add LeetCode tags
+cargo archive two-sum -d easy -t "array" -r "HashMap"   # add Rust concepts you practiced
 ```
 
 ## Commands
@@ -30,7 +39,7 @@ cargo archive two-sum -d easy -t "array,hash-map" -r "iterators,entry-api"
 | `cargo solve <url>` | Fetch problem from LeetCode, generate impl skeleton and tests |
 | `cargo solve` | Start with a blank template (no URL) |
 | `cargo solve --force` | Overwrite solution.rs without confirmation |
-| `cargo archive <name>` | Save current solution to archive/ with metadata |
+| `cargo archive <name>` | Save current solution to archive/ (optional: `-d` difficulty, `-t` tags, `-r` rust concepts) |
 | `cargo progress` | Show solving stats and progress |
 | `cargo watch -x test` | Auto-run tests on file changes |
 

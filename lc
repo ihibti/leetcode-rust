@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+ALL_GOOD=true
+
+check_tool() {
+    local name="$1"
+    local required="$2"
+    local hint="$3"
+
+    if command -v "$name" &>/dev/null; then
+        local version
+        version="$("$name" --version 2>/dev/null | head -1)" || version=""
+        echo -e "  ${GREEN}✓${NC} ${version:-$name}"
+    else
+        local label
+        if [[ "$required" == "true" ]]; then
+            label="required"
+            ALL_GOOD=false
+        else
+            label="recommended"
+        fi
+        echo -e "  ${RED}✗${NC} ${name} (${label})"
+        echo "    → $hint"
+    fi
+}
+
+cmd_setup() {
+    echo "Checking environment..."
+    echo ""
+
+    local os
+    os="$(uname -s)"
+    echo -e "  Platform: ${BOLD}${os}${NC}"
+    echo ""
+
+    check_tool "rustup" "true" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+    check_tool "rustc" "true" "Install via rustup (see above)"
+    check_tool "cargo" "true" "Install via rustup (see above)"
+    check_tool "rustfmt" "false" "rustup component add rustfmt"
+    check_tool "clippy-driver" "false" "rustup component add clippy"
+    check_tool "cargo-watch" "false" "cargo install cargo-watch"
+
+    echo ""
+
+    if [[ ":$PATH:" != *":$HOME/.cargo/bin:"* ]]; then
+        echo -e "${YELLOW}Warning:${NC} ~/.cargo/bin is not in your PATH"
+        echo "  Add this to your shell config (~/.bashrc or ~/.zshrc):"
+        echo "    export PATH=\"\$HOME/.cargo/bin:\$PATH\""
+        echo ""
+    fi
+
+    if $ALL_GOOD; then
+        echo -e "${GREEN}Ready!${NC} Run 'cargo solve' to start a new problem."
+    else
+        echo "Some required tools are missing. Install them and run './lc setup' again."
+    fi
+}
+
+cmd_reset() {
+    if ! command -v git &>/dev/null; then
+        echo "Error: git is not available. Consider re-cloning the repository."
+        exit 1
+    fi
+
+    if ! git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+        echo "Error: not inside a git repository. Consider re-cloning."
+        exit 1
+    fi
+
+    echo "Restoring source files to clean state..."
+
+    local files=(src/lib.rs src/types.rs src/macros.rs src/solution.rs)
+    for file in "${files[@]}"; do
+        if git -C "$SCRIPT_DIR" checkout -- "$file" 2>/dev/null; then
+            echo "  Restored $file"
+        else
+            echo -e "  ${YELLOW}Warning:${NC} could not restore $file"
+        fi
+    done
+
+    if [[ -f "$SCRIPT_DIR/.solve_session" ]]; then
+        rm "$SCRIPT_DIR/.solve_session"
+        echo "  Removed .solve_session"
+    fi
+
+    echo ""
+    echo "Done. Your archive/ is untouched."
+}
+
+cmd_help() {
+    echo -e "${BOLD}LeetCode Rust — Help${NC}"
+    echo ""
+    echo "  1) How to use this repo"
+    echo "  2) Broken something? (reset source files)"
+    echo "  3) Missing tools? (check & install)"
+    echo "  4) VS Code + rust-analyzer setup"
+    echo "  5) AI tutor setup"
+    echo "  6) Report a bug"
+    echo ""
+    read -rp "Pick a number (or press Enter to exit): " choice
+
+    case "$choice" in
+        1)
+            echo ""
+            echo "Read README.md for the full guide:"
+            echo "  less \"$SCRIPT_DIR/README.md\""
+            ;;
+        2)
+            echo ""
+            cmd_reset
+            ;;
+        3)
+            echo ""
+            cmd_setup
+            ;;
+        4)
+            echo ""
+            echo "VS Code + rust-analyzer setup:"
+            echo "  1. Install the 'rust-analyzer' extension from the VS Code marketplace"
+            echo "  2. Open this folder in VS Code: code ."
+            echo "  3. rust-analyzer should activate automatically"
+            echo "  4. If not, check that rustup is installed: rustup --version"
+            echo ""
+            echo "Useful settings (add to .vscode/settings.json):"
+            echo '  { "rust-analyzer.check.command": "clippy" }'
+            ;;
+        5)
+            echo ""
+            if [[ -f "$SCRIPT_DIR/docs/ai-tutor.md" ]]; then
+                echo "Read the AI tutor guide:"
+                echo "  less \"$SCRIPT_DIR/docs/ai-tutor.md\""
+            else
+                echo "AI tutor guide not yet available."
+            fi
+            ;;
+        6)
+            echo ""
+            local remote_url
+            remote_url="$(git -C "$SCRIPT_DIR" remote get-url origin 2>/dev/null || echo "")"
+            if [[ -n "$remote_url" ]]; then
+                local repo_url="${remote_url%.git}"
+                repo_url="${repo_url/git@github.com:/https://github.com/}"
+                echo "Report issues at:"
+                echo "  ${repo_url}/issues"
+            else
+                echo "Open an issue on the project's GitHub repository."
+            fi
+            ;;
+        *)
+            ;;
+    esac
+}
+
+case "${1:-help}" in
+    setup)  cmd_setup ;;
+    reset)  cmd_reset ;;
+    help)   cmd_help ;;
+    *)
+        echo "Unknown command: $1"
+        echo "Usage: ./lc [setup|reset|help]"
+        exit 1
+        ;;
+esac

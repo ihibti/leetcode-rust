@@ -143,6 +143,19 @@ pub fn strip_html(html: &str) -> String {
     result
 }
 
+pub fn extract_method_name(rust_snippet: &str) -> Option<String> {
+    for line in rust_snippet.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("pub fn ") {
+            let name: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+            if !name.is_empty() {
+                return Some(name);
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,5 +350,55 @@ mod tests {
     #[test]
     fn strip_sup_tag() {
         assert_eq!(strip_html("10<sup>4</sup>"), "10^4");
+    }
+
+    #[test]
+    fn method_basic() {
+        assert_eq!(
+            extract_method_name("impl Solution {\n    pub fn two_sum(nums: Vec<i32>, target: i32) -> Vec<i32> {\n        \n    }\n}"),
+            Some("two_sum".into())
+        );
+    }
+
+    #[test]
+    fn method_single_param() {
+        assert_eq!(
+            extract_method_name("impl Solution {\n    pub fn is_palindrome(x: i32) -> bool {\n        \n    }\n}"),
+            Some("is_palindrome".into())
+        );
+    }
+
+    #[test]
+    fn method_with_self() {
+        assert_eq!(
+            extract_method_name("impl Solution {\n    pub fn run(&self) -> i32 {\n        \n    }\n}"),
+            Some("run".into())
+        );
+    }
+
+    #[test]
+    fn method_empty_snippet() {
+        assert_eq!(extract_method_name(""), None);
+    }
+
+    #[test]
+    fn method_no_pub_fn() {
+        assert_eq!(extract_method_name("struct Foo {}"), None);
+    }
+
+    #[test]
+    fn method_complex_return_type() {
+        assert_eq!(
+            extract_method_name("impl Solution {\n    pub fn max_area(height: Vec<i32>) -> i32 {\n        \n    }\n}"),
+            Some("max_area".into())
+        );
+    }
+
+    #[test]
+    fn method_lifetime_annotation() {
+        assert_eq!(
+            extract_method_name("impl Solution {\n    pub fn longest_common_prefix<'a>(strs: &[&'a str]) -> &'a str {\n        \n    }\n}"),
+            Some("longest_common_prefix".into())
+        );
     }
 }

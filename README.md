@@ -1,4 +1,6 @@
-# LeetCode in Rust
+<p align="center">
+  <img src="docs/banner.svg" alt="LeetCode in Rust" width="100%">
+</p>
 
 A local workspace for solving LeetCode problems in Rust with full IDE support (rust-analyzer), solution archiving, and progress tracking. Built for 42 school students learning Rust from C.
 

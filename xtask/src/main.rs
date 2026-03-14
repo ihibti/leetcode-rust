@@ -51,7 +51,32 @@ fn main() {
 
     let result = match cli.command {
         Command::Setup => setup::run(),
-        Command::Solve { force } => solve::run(&root, force),
+        Command::Solve { force } => {
+            use std::io::{self, IsTerminal, Read};
+
+            let example_input = if io::stdin().is_terminal() {
+                println!("Paste LeetCode examples to auto-generate tests?");
+                println!("(paste examples, then Ctrl+D to confirm — or just press Enter to skip)\n");
+
+                let mut input = String::new();
+                let mut first_line = String::new();
+                if io::stdin().read_line(&mut first_line).is_ok() {
+                    if first_line.trim().is_empty() {
+                        None
+                    } else {
+                        input.push_str(&first_line);
+                        let _ = io::stdin().read_to_string(&mut input);
+                        Some(input)
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            solve::run(&root, force, example_input.as_deref())
+        }
         Command::Archive {
             name,
             difficulty,

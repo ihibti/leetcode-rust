@@ -6,12 +6,21 @@ A local workspace for solving LeetCode problems in Rust with full IDE support (r
 
 ---
 
+## Requirements
+
+Install the Rust toolchain if you don't have it:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Recommended: `cargo-watch` for live test feedback — `cargo install cargo-watch`
+
 ## Install
 
 ```bash
 git clone https://github.com/ihibti/leetcode-rust.git
 cd leetcode-rust
-./lc setup
 ```
 
 ## Solve a Problem
@@ -25,12 +34,11 @@ cargo solve https://leetcode.com/problems/two-sum/
 cargo watch -x test
 
 # When you're done, save it to your archive
-# Only the name is required — flags are optional but feed into cargo progress
-# so you can track your weak spots over time
+# Difficulty and tags are auto-filled from LeetCode — just pass the name
 cargo archive two-sum
-cargo archive two-sum -d easy                          # add difficulty
-cargo archive two-sum -d easy -t "array,hash-map"      # add LeetCode tags
-cargo archive two-sum -d easy -t "array" -r "HashMap"   # add Rust concepts you practiced
+
+# You can still override with flags if needed
+cargo archive two-sum -r "HashMap,entry-api"   # add Rust concepts you practiced
 
 # See your stats
 cargo progress
@@ -40,32 +48,43 @@ cargo progress
 
 | Command | Description |
 |---|---|
-| `./lc setup` | Check environment, print install commands for missing tools |
-| `./lc reset` | Restore source files to clean state (keeps archive) |
 | `cargo solve <url>` | Fetch problem from LeetCode, generate impl skeleton and tests |
 | `cargo solve` | Start with a blank template (no URL) |
 | `cargo solve --force` | Overwrite solution.rs without confirmation |
-| `cargo archive <name>` | Save current solution to archive/ (optional: `-d` difficulty, `-t` tags, `-r` rust concepts) |
+| `cargo archive <name>` | Save current solution (difficulty and tags auto-filled from LeetCode, optional: `-r` rust concepts) |
 | `cargo progress` | Show solving stats and progress |
 | `cargo watch -x test` | Auto-run tests on file changes |
 
 ## Workflow
 
 ```
-./lc setup → cargo solve <url> → edit solution.rs → cargo watch -x test → cargo archive
-                  ↑                                                            |
-                  └────────────────────────────────────────────────────────────┘
+cargo solve <url> → edit solution.rs → cargo watch -x test → cargo archive <name>
+        ↑                                                            |
+        └────────────────────────────────────────────────────────────┘
 ```
 
 When you run `cargo solve <url>`, it fetches the problem from LeetCode, generates the `impl Solution` skeleton and test cases from the examples. Open `src/solution.rs` — the method signature and tests are ready, just fill in the implementation.
 
-Running `cargo solve` without a URL gives a blank template.
+When you archive, difficulty and tags are automatically pulled from the LeetCode data. You only need to pass the problem name.
+
+## rust-analyzer Setup
+
+rust-analyzer gives you completions, docs on hover, inline type hints, and compiler errors in your editor. You need to install it for your editor.
+
+**VS Code:**
+1. Install the [rust-analyzer extension](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+2. **Open VS Code at the repo root** (`code .` from `leetcode-rust/`) — rust-analyzer needs to find `Cargo.toml` at the top level to work correctly
+3. It activates automatically once the workspace is open
+
+**Neovim:**
+1. Install rust-analyzer: `rustup component add rust-analyzer`
+2. Your LSP config should pick it up (if using nvim-lspconfig, it works out of the box)
+3. Open Neovim from the repo root so it finds `Cargo.toml`
 
 ## Project Structure
 
 ```
 leetcode-rust/
-├── lc                   # Bootstrap script (setup, reset)
 ├── src/
 │   ├── lib.rs           # Crate root
 │   ├── solution.rs      # YOUR WORKING FILE
@@ -86,12 +105,6 @@ leetcode-rust/
 - **[Cheatsheet](docs/cheatsheet.md)** — Side-by-side C and Rust patterns for LeetCode
 - **[Resources](docs/resources.md)** — Curated learning resources + neetcode problem roadmap
 - **[AI Tutor](docs/ai-tutor.md)** — Set up Claude Code or other AI tools as your Rust tutor
-
-## Requirements
-
-- macOS or Linux
-- Rust toolchain (installed via [rustup](https://rustup.rs/))
-- Recommended: `cargo-watch` for live test feedback
 
 ## Credits
 

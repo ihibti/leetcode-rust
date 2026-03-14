@@ -89,3 +89,66 @@ Active chat with dedicated channels for beginners. Good for getting quick answer
 **This Week in Rust** -- https://this-week-in-rust.org/
 
 Weekly newsletter covering new crates, blog posts, RFCs, and job postings. Subscribe once you are comfortable with the basics to stay current with the ecosystem.
+
+---
+
+## LeetCode Problem Roadmap (Neetcode)
+
+Based on the Neetcode roadmap — a structured order for working through LeetCode problems by topic. Each category builds on the previous. Links go to neetcode.io where you can see the full problem lists and video explanations.
+
+### Pick Your Weakness
+
+Not sure where to start? Match your situation:
+
+- **"I struggle with basic data structure operations"** → Start with Arrays & Hashing, then Stack
+- **"I can solve easy problems but medium ones feel impossible"** → Two Pointers and Sliding Window — the technique gap between easy and medium
+- **"Recursion confuses me"** → Trees, then Backtracking — recursive patterns that build naturally
+- **"I don't know when to use which data structure"** → Heap / Priority Queue and Graphs — choosing the right tool
+- **"Dynamic programming is black magic"** → work through the DP section last, after all other categories
+
+### Categories
+
+**Arrays & Hashing** — the foundation. Most LeetCode problems touch arrays. HashMap/HashSet for O(1) lookups.
+https://neetcode.io/roadmap (Arrays & Hashing section)
+
+**Two Pointers** — scanning from both ends or at different speeds. Turns O(n²) brute force into O(n).
+https://neetcode.io/roadmap (Two Pointers section)
+
+**Sliding Window** — fixed or variable-size windows over arrays/strings. Substring and subarray problems.
+https://neetcode.io/roadmap (Sliding Window section)
+
+**Stack** — LIFO for matching brackets, monotonic stacks, expression evaluation. Vec::push/pop in Rust.
+https://neetcode.io/roadmap (Stack section)
+
+**Binary Search** — not just sorted arrays. Search spaces, boundaries, rotated arrays.
+https://neetcode.io/roadmap (Binary Search section)
+
+**Linked List** — ownership gets real here. `Option<Box<ListNode>>`, `.take()`, recursive vs iterative.
+https://neetcode.io/roadmap (Linked List section)
+
+**Trees** — `Rc<RefCell<TreeNode>>` everywhere. DFS (pre/in/post-order), BFS, recursive thinking.
+https://neetcode.io/roadmap (Trees section)
+
+**Tries** — prefix trees for string problems. Less common but when you need one, nothing else works.
+https://neetcode.io/roadmap (Tries section)
+
+**Backtracking** — generate all combinations/permutations. Recursive with state tracking.
+https://neetcode.io/roadmap (Backtracking section)
+
+**Heap / Priority Queue** — `BinaryHeap` in Rust (max-heap by default; wrap in `Reverse` for min-heap).
+https://neetcode.io/roadmap (Heap / Priority Queue section)
+
+**Graphs** — adjacency lists, DFS, BFS, topological sort, union-find.
+https://neetcode.io/roadmap (Graphs section)
+
+**Dynamic Programming** — build from subproblems. Start with 1D DP, then 2D. Hardest category for most people.
+https://neetcode.io/roadmap (1-D DP and 2-D DP sections)
+
+**Greedy** — local optimal choices that lead to global optimal. Intervals, scheduling.
+https://neetcode.io/roadmap (Greedy section)
+
+**Intervals** — merge, insert, overlap detection. Sort by start time, scan linearly.
+https://neetcode.io/roadmap (Intervals section)
+
+**Math & Geometry** — modular arithmetic, GCD, matrix operations.
+https://neetcode.io/roadmap (Math & Geometry section)

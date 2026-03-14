@@ -7,7 +7,7 @@ A local workspace for solving LeetCode problems in Rust with full IDE support (r
 ## Quick Start
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/ihibti/leetcode-rust.git
 cd leetcode-rust
 ./lc setup              # checks your environment, tells you what to install
 cargo solve             # resets solution.rs, optionally generates tests from examples

@@ -71,3 +71,7 @@ leetcode-rust/
 - macOS or Linux
 - Rust toolchain (installed via [rustup](https://rustup.rs/))
 - Recommended: `cargo-watch` for live test feedback
+
+## Credits
+
+Shoutout to [Idrissa](https://github.com/iibabyy) for getting me into Rust.

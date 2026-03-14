@@ -2,6 +2,7 @@ mod archive;
 mod progress;
 mod setup;
 mod parse_examples;
+mod leetcode;
 mod solve;
 
 use clap::{Parser, Subcommand};

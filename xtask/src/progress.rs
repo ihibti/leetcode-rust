@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -6,6 +6,7 @@ use std::path::Path;
 #[derive(Debug, Default)]
 pub struct ProblemMeta {
     pub name: String,
+    pub slug: String,
     pub difficulty: String,
     pub tags: Vec<String>,
     pub rust_concepts: Vec<String>,
@@ -14,22 +15,7 @@ pub struct ProblemMeta {
 }
 
 pub fn run(root: &Path) -> Result<(), io::Error> {
-    let archive_dir = root.join("archive");
-    if !archive_dir.exists() {
-        println!("No problems archived yet. Solve your first problem and run `cargo archive`!");
-        return Ok(());
-    }
-
-    let mut problems = Vec::new();
-    for entry in fs::read_dir(&archive_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() || path.extension().is_none_or(|e| e != "rs") {
-            continue;
-        }
-        let content = fs::read_to_string(&path)?;
-        problems.push(parse_meta(&content));
-    }
+    let mut problems = load_archive(&root.join("archive"))?;
 
     if problems.is_empty() {
         println!("No problems archived yet. Solve your first problem and run `cargo archive`!");
@@ -39,6 +25,31 @@ pub fn run(root: &Path) -> Result<(), io::Error> {
     problems.sort_by(|a, b| a.date.cmp(&b.date));
     display(&problems);
     Ok(())
+}
+
+pub fn load_archive(archive_dir: &Path) -> Result<Vec<ProblemMeta>, io::Error> {
+    if !archive_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut problems = Vec::new();
+    for entry in fs::read_dir(archive_dir)? {
+        let path = entry?.path();
+        if path.is_dir() || path.extension().is_none_or(|e| e != "rs") {
+            continue;
+        }
+        let content = fs::read_to_string(&path)?;
+        problems.push(parse_meta(&content));
+    }
+    Ok(problems)
+}
+
+pub fn done_slugs(archive_dir: &Path) -> Result<HashSet<String>, io::Error> {
+    Ok(load_archive(archive_dir)?
+        .into_iter()
+        .map(|meta| meta.slug)
+        .filter(|slug| !slug.is_empty())
+        .collect())
 }
 
 pub fn parse_meta(content: &str) -> ProblemMeta {
@@ -52,6 +63,8 @@ pub fn parse_meta(content: &str) -> ProblemMeta {
         };
         if let Some(val) = rest.strip_prefix("Problem: ") {
             meta.name = val.to_string();
+        } else if let Some(val) = rest.strip_prefix("Slug: ") {
+            meta.slug = val.trim().to_string();
         } else if let Some(val) = rest.strip_prefix("Difficulty: ") {
             meta.difficulty = val.to_string();
         } else if let Some(val) = rest.strip_prefix("Tags: ") {
@@ -135,6 +148,42 @@ mod tests {
         assert_eq!(meta.rust_concepts, vec!["iterators", "entry-api"]);
         assert_eq!(meta.date, "2026-03-14");
         assert_eq!(meta.time, "12m");
+    }
+
+    #[test]
+    fn parse_slug() {
+        let meta = parse_meta("//! Problem: two-sum\n//! Slug: two-sum\n\ncode\n");
+        assert_eq!(meta.slug, "two-sum");
+    }
+
+    #[test]
+    fn parse_slug_trims() {
+        let meta = parse_meta("//! Problem: mine\n//! Slug: two-sum   \n\ncode\n");
+        assert_eq!(meta.slug, "two-sum");
+    }
+
+    #[test]
+    fn done_slugs_missing_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let done = done_slugs(&dir.path().join("archive")).unwrap();
+        assert!(done.is_empty());
+    }
+
+    #[test]
+    fn done_slugs_empty_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let done = done_slugs(dir.path()).unwrap();
+        assert!(done.is_empty());
+    }
+
+    #[test]
+    fn done_slugs_mixed() {
+        let dir = tempfile::TempDir::new().unwrap();
+        fs::write(dir.path().join("a.rs"), "//! Problem: a\n//! Slug: two-sum\n\ncode\n").unwrap();
+        fs::write(dir.path().join("b.rs"), "//! Problem: b\n\ncode\n").unwrap();
+        fs::write(dir.path().join("c.txt"), "//! Slug: ignored\n").unwrap();
+        let done = done_slugs(dir.path()).unwrap();
+        assert_eq!(done, HashSet::from(["two-sum".to_string()]));
     }
 
     #[test]

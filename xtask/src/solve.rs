@@ -52,55 +52,64 @@ fn assemble_template(data: &crate::leetcode::ProblemData) -> String {
     )
 }
 
-pub fn run(root: &Path, force: bool, url: Option<&str>) -> Result<(), io::Error> {
+pub fn ensure_free(root: &Path, force: bool) -> Result<(), io::Error> {
     let solution_path = root.join("src/solution.rs");
-    let session_path = root.join(".solve_session");
-
-    if solution_path.exists() && !force {
-        let content = fs::read_to_string(&solution_path)?;
-        if content.trim() != SOLUTION_TEMPLATE.trim() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "solution.rs has unsaved work. Use `cargo solve --force` to overwrite,\n\
-                 or run `cargo archive <name>` first to save your solution.",
-            ));
-        }
+    if force || !solution_path.exists() {
+        return Ok(());
     }
+    let content = fs::read_to_string(&solution_path)?;
+    if content.trim() != SOLUTION_TEMPLATE.trim() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "solution.rs has unsaved work. Use `--force` to overwrite,\n\
+             or run `cargo archive` first to save your solution.",
+        ));
+    }
+    Ok(())
+}
 
-    let (content, problem_data) = match url {
-        Some(url) => {
-            match crate::leetcode::extract_slug(url) {
-                Some(slug) => {
-                    eprintln!("Fetching {slug} from LeetCode...");
-                    match crate::leetcode::fetch_problem(&slug) {
-                        Ok(data) => {
-                            eprintln!("Got it — {}", data.title);
-                            let template = assemble_template(&data);
-                            (template, Some(data))
-                        }
-                        Err(e) => {
-                            eprintln!("Couldn't fetch: {e}");
-                            eprintln!("No worries, starting with a blank template.");
-                            (SOLUTION_TEMPLATE.to_string(), None)
-                        }
+pub fn start(root: &Path, data: Option<&crate::leetcode::ProblemData>) -> Result<(), io::Error> {
+    let content = match data {
+        Some(d) => assemble_template(d),
+        None => SOLUTION_TEMPLATE.to_string(),
+    };
+    fs::write(root.join("src/solution.rs"), content)?;
+    write_session(&root.join(".solve_session"), data)
+}
+
+pub fn run(root: &Path, force: bool, url: Option<&str>) -> Result<(), io::Error> {
+    ensure_free(root, force)?;
+
+    let problem_data = match url {
+        Some(url) => match crate::leetcode::extract_slug(url) {
+            Some(slug) => {
+                eprintln!("Fetching {slug} from LeetCode...");
+                match crate::leetcode::fetch_problem(&slug) {
+                    Ok(data) => {
+                        eprintln!("Got it — {}", data.title);
+                        Some(data)
+                    }
+                    Err(e) => {
+                        eprintln!("Couldn't fetch: {e}");
+                        eprintln!("No worries, starting with a blank template.");
+                        None
                     }
                 }
-                None => {
-                    eprintln!("That doesn't look like a LeetCode URL.");
-                    eprintln!("Expected: https://leetcode.com/problems/<problem-name>/");
-                    eprintln!("Starting with a blank template instead.");
-                    (SOLUTION_TEMPLATE.to_string(), None)
-                }
             }
-        }
+            None => {
+                eprintln!("That doesn't look like a LeetCode URL.");
+                eprintln!("Expected: https://leetcode.com/problems/<problem-name>/");
+                eprintln!("Starting with a blank template instead.");
+                None
+            }
+        },
         None => {
             println!("Tip: run cargo solve <url> to auto-generate tests from a LeetCode problem");
-            (SOLUTION_TEMPLATE.to_string(), None)
+            None
         }
     };
 
-    fs::write(&solution_path, &content)?;
-    write_session(&session_path, problem_data.as_ref())?;
+    start(root, problem_data.as_ref())?;
 
     println!("Ready! Open src/solution.rs and start coding");
     Ok(())
@@ -212,6 +221,49 @@ Output: [1,2]"
         assert!(content.contains("pub fn foo"));
         assert!(content.contains("fn example()"));
         assert!(content.contains("// your tests here"));
+    }
+
+    fn two_sum_data() -> crate::leetcode::ProblemData {
+        crate::leetcode::ProblemData {
+            slug: "two-sum".into(),
+            title: "Two Sum".into(),
+            difficulty: "Easy".into(),
+            tags: vec!["Array".into()],
+            examples_text: "".into(),
+            rust_snippet: "impl Solution {\n    pub fn two_sum(nums: Vec<i32>, target: i32) -> Vec<i32> {\n        \n    }\n}".into(),
+        }
+    }
+
+    #[test]
+    fn start_with_data_writes_snippet_and_session() {
+        let dir = setup_dir();
+        start(dir.path(), Some(&two_sum_data())).unwrap();
+
+        let content = fs::read_to_string(dir.path().join("src/solution.rs")).unwrap();
+        assert!(content.contains("pub fn two_sum"));
+        let session = fs::read_to_string(dir.path().join(".solve_session")).unwrap();
+        assert!(session.contains("\"slug\":\"two-sum\""));
+    }
+
+    #[test]
+    fn ensure_free_rejects_dirty() {
+        let dir = setup_dir();
+        fs::write(dir.path().join("src/solution.rs"), "work in progress").unwrap();
+        assert!(ensure_free(dir.path(), false).is_err());
+    }
+
+    #[test]
+    fn ensure_free_accepts_template() {
+        let dir = setup_dir();
+        fs::write(dir.path().join("src/solution.rs"), SOLUTION_TEMPLATE).unwrap();
+        assert!(ensure_free(dir.path(), false).is_ok());
+    }
+
+    #[test]
+    fn ensure_free_force() {
+        let dir = setup_dir();
+        fs::write(dir.path().join("src/solution.rs"), "work in progress").unwrap();
+        assert!(ensure_free(dir.path(), true).is_ok());
     }
 
     #[test]

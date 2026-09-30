@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeetCode in Rust</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #08090a;
+  --surface: #111214;
+  --surface-2: #1a1c1f;
+  --border: #2a2d31;
+  --text: #e4e4e7;
+  --text-dim: #71717a;
+  --rust: #e5734a;
+  --rust-glow: #e5734a33;
+  --green: #4ade80;
+  --amber: #f59e0b;
+  --red: #ef4444;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+.noise {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 9999;
+}
+
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  position: relative;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, var(--rust-glow) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 2rem;
+  animation: fadeUp 0.6s ease both;
+  background: var(--surface);
+}
+
+.badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+h1 {
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  animation: fadeUp 0.6s ease 0.1s both;
+}
+
+h1 .rust {
+  background: linear-gradient(135deg, #e5734a, #f59e0b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  font-size: clamp(1rem, 2.5vw, 1.35rem);
+  color: var(--text-dim);
+  text-align: center;
+  max-width: 550px;
+  margin-top: 1.5rem;
+  font-weight: 300;
+  animation: fadeUp 0.6s ease 0.2s both;
+}
+
+.cta-row {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  animation: fadeUp 0.6s ease 0.3s both;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+
+.terminal-section {
+  padding: 6rem 2rem;
+  display: flex;
+  justify-content: center;
+}
+
+.terminal {
+  width: 100%;
+  max-width: 720px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+  animation: fadeUp 0.8s ease both;
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.terminal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.terminal-dot:nth-child(1) { background: var(--red); }
+.terminal-dot:nth-child(2) { background: var(--amber); }
+.terminal-dot:nth-child(3) { background: var(--green); }
+
+.terminal-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-left: 0.5rem;
+}
+
+.terminal-body {
+  padding: 1.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 1.8;
+  min-height: 320px;
+}
+
+.line {
+  opacity: 0;
+  animation: typeLine 0.3s ease forwards;
+}
+
+.line .prompt { color: var(--rust); }
+.line .cmd { color: var(--text); }
+.line .flag { color: var(--amber); }
+.line .url { color: #60a5fa; }
+.line .output { color: var(--text-dim); }
+.line .success { color: var(--green); }
+.line .file { color: #c084fc; }
+.line .comment { color: #525264; }
+
+@keyframes typeLine {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.features {
+  padding: 4rem 2rem 8rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.features h2 {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 3.5rem;
+  animation: fadeUp 0.6s ease both;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  transition: all 0.3s ease;
+  animation: fadeUp 0.6s ease both;
+}
+
+.feature-card:hover {
+  border-color: var(--rust);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.feature-icon {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+}
+
+.feature-card h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.feature-card p {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.install-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.install-box:hover {
+  border-color: var(--rust);
+}
+
+.install-box .copy-icon {
+  color: var(--text-dim);
+  transition: color 0.2s;
+}
+
+.install-box:hover .copy-icon { color: var(--rust); }
+
+.footer {
+  text-align: center;
+  padding: 3rem 2rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.footer a {
+  color: var(--rust);
+  text-decoration: none;
+}
+
+.footer a:hover { text-decoration: underline; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 600px) {
+  .terminal-body { font-size: 0.7rem; padding: 1rem; }
+  .feature-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="noise"></div>
+
+<section class="hero">
+  <div class="badge">
+    <span class="dot"></span>
+    built for 42 students
+  </div>
+  <h1>LeetCode in <span class="rust">Rust</span></h1>
+  <p class="subtitle">From C to Rust, one problem at a time. Full IDE support, auto-generated tests, and a workflow that gets out of your way.</p>
+  <div class="cta-row">
+    <div class="install-box" onclick="copyInstall(this)" style="animation: fadeUp 0.6s ease 0.3s both;">
+      <span>git clone https://github.com/ihibti/leetcode-rust.git && cd leetcode-rust && ./lc setup</span>
+      <span class="copy-icon">&#x2398;</span>
+    </div>
+  </div>
+</section>
+
+<section class="terminal-section">
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="terminal-dot"></div>
+      <div class="terminal-dot"></div>
+      <div class="terminal-dot"></div>
+      <span class="terminal-title">~/leetcode-rust</span>
+    </div>
+    <div class="terminal-body" id="term"></div>
+  </div>
+</section>
+
+<section class="features">
+  <h2>Everything you need</h2>
+  <div class="feature-grid">
+    <div class="feature-card" style="animation-delay: 0.1s">
+      <div class="feature-icon">&#x1f517;</div>
+      <h3>Paste a URL, start coding</h3>
+      <p>Run <code>cargo solve &lt;url&gt;</code> with any LeetCode link. It fetches the problem, generates the impl skeleton and test cases from the examples.</p>
+    </div>
+    <div class="feature-card" style="animation-delay: 0.2s">
+      <div class="feature-icon">&#x1f9ea;</div>
+      <h3>Real tests, not stubs</h3>
+      <p>Auto-generated tests call your actual method with the example inputs. Just fill in the implementation and watch them go green.</p>
+    </div>
+    <div class="feature-card" style="animation-delay: 0.3s">
+      <div class="feature-icon">&#x1f4da;</div>
+      <h3>C-to-Rust guides</h3>
+      <p>Syntax quick reference, side-by-side patterns, and a neetcode roadmap. Written for people who think in pointers and malloc.</p>
+    </div>
+    <div class="feature-card" style="animation-delay: 0.4s">
+      <div class="feature-icon">&#x1f4c8;</div>
+      <h3>Track your progress</h3>
+      <p>Archive solutions with difficulty and tags. <code>cargo progress</code> shows your stats, concept coverage, and weak spots over time.</p>
+    </div>
+    <div class="feature-card" style="animation-delay: 0.5s">
+      <div class="feature-icon">&#x2699;&#xfe0f;</div>
+      <h3>Full rust-analyzer</h3>
+      <p>Completions, docs on hover, inlay hints, go-to-definition. The web editor can't compete with a real IDE setup.</p>
+    </div>
+    <div class="feature-card" style="animation-delay: 0.6s">
+      <div class="feature-icon">&#x1f916;</div>
+      <h3>AI tutor ready</h3>
+      <p>Pre-configured for Claude Code, Cursor, and Copilot. The AI knows you're learning Rust from C and adapts its explanations.</p>
+    </div>
+  </div>
+</section>
+
+
+<footer class="footer">
+  Made with &#x1f9c0; by <a href="https://github.com/ihibti">ihibti</a> &middot; Shoutout to <a href="https://github.com/iibabyy">Idrissa</a> for the Rust spark
+</footer>
+
+<script>
+const lines = [
+  { parts: [
+    { text: '$ ', cls: 'prompt' },
+    { text: 'cargo solve ', cls: 'cmd' },
+    { text: 'https://leetcode.com/problems/two-sum/', cls: 'url' }
+  ]},
+  { parts: [{ text: 'Fetching two-sum from LeetCode...', cls: 'output' }] },
+  { parts: [{ text: 'Got it \u2014 Two Sum', cls: 'success' }] },
+  { parts: [{ text: 'Ready! Open src/solution.rs and start coding', cls: 'success' }] },
+  { parts: [{ text: '', cls: 'output' }] },
+  { parts: [
+    { text: '$ ', cls: 'prompt' },
+    { text: 'cat ', cls: 'cmd' },
+    { text: 'src/solution.rs', cls: 'file' }
+  ]},
+  { parts: [{ text: 'impl Solution {', cls: 'output' }] },
+  { parts: [{ text: '    pub fn two_sum(nums: Vec<i32>, target: i32) -> Vec<i32> {', cls: 'output' }] },
+  { parts: [{ text: '        ', cls: 'output' }, { text: '// your code here', cls: 'comment' }] },
+  { parts: [{ text: '    }', cls: 'output' }] },
+  { parts: [{ text: '}', cls: 'output' }] },
+  { parts: [{ text: '', cls: 'output' }] },
+  { parts: [
+    { text: '$ ', cls: 'prompt' },
+    { text: 'cargo test', cls: 'cmd' }
+  ]},
+  { parts: [{ text: 'test example_1 ... ', cls: 'output' }, { text: 'ok', cls: 'success' }] },
+  { parts: [{ text: 'test example_2 ... ', cls: 'output' }, { text: 'ok', cls: 'success' }] },
+  { parts: [{ text: 'test example_3 ... ', cls: 'output' }, { text: 'ok', cls: 'success' }] },
+  { parts: [{ text: '', cls: 'output' }] },
+  { parts: [
+    { text: '$ ', cls: 'prompt' },
+    { text: 'cargo archive ', cls: 'cmd' },
+    { text: 'two-sum ', cls: 'file' },
+    { text: '-d easy -t "array,hash-map"', cls: 'flag' }
+  ]},
+  { parts: [{ text: 'Saved to archive/two_sum.rs \u2014 nice work!', cls: 'success' }] },
+];
+
+const term = document.getElementById('term');
+let delay = 400;
+
+lines.forEach((line, i) => {
+  const div = document.createElement('div');
+  div.className = 'line';
+  div.style.animationDelay = delay + 'ms';
+  line.parts.forEach(p => {
+    const span = document.createElement('span');
+    span.className = p.cls;
+    span.textContent = p.text;
+    div.appendChild(span);
+  });
+  term.appendChild(div);
+  delay += line.parts.some(p => p.cls === 'prompt') ? 600 : 150;
+});
+
+function copyInstall(el) {
+  const text = el.querySelector('span').textContent;
+  navigator.clipboard.writeText(text);
+  const icon = el.querySelector('.copy-icon');
+  icon.textContent = '\u2713';
+  icon.style.color = 'var(--green)';
+  setTimeout(() => {
+    icon.textContent = '\u2398';
+    icon.style.color = '';
+  }, 2000);
+}
+</script>
+</body>
+</html>

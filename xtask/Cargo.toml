@@ -7,6 +7,7 @@ edition = "2024"
 clap = { version = "4", features = ["derive"] }
 chrono = "0.4"
 ureq = "3"
+csv = "1"
 
 [dev-dependencies]
 tempfile = "3"

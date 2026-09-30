@@ -1,4 +1,5 @@
 mod archive;
+mod catalog;
 mod progress;
 mod parse_examples;
 mod leetcode;

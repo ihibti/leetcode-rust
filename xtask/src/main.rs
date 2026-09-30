@@ -3,8 +3,11 @@ mod catalog;
 mod progress;
 mod parse_examples;
 mod leetcode;
+mod next;
+mod remote;
 mod solve;
 
+use catalog::{Difficulty, Window};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 
@@ -37,6 +40,17 @@ enum Command {
     },
     #[command(about = "Show your solving progress")]
     Progress,
+    #[command(about = "Pick a random unsolved problem from a company list")]
+    Next {
+        #[arg(value_enum, default_value_t = Window::Days30, help = "Recency window of the company list")]
+        window: Window,
+        #[arg(short, long, default_value = "Amazon", help = "Company folder name (case-sensitive)")]
+        company: String,
+        #[arg(short, long, value_enum, help = "Only draw this difficulty")]
+        difficulty: Option<Difficulty>,
+        #[arg(long, help = "Overwrite unsaved work in solution.rs")]
+        force: bool,
+    },
 }
 
 fn workspace_root() -> PathBuf {
@@ -59,6 +73,20 @@ fn main() {
             rust_concepts,
         } => archive::run(&root, name.as_deref(), difficulty, tags, rust_concepts),
         Command::Progress => progress::run(&root),
+        Command::Next {
+            window,
+            company,
+            difficulty,
+            force,
+        } => next::cli(
+            &root,
+            &next::NextArgs {
+                window,
+                company,
+                difficulty,
+                force,
+            },
+        ),
     };
 
     if let Err(e) = result {

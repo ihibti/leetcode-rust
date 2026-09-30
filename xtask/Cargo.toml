@@ -8,6 +8,7 @@ clap = { version = "4", features = ["derive"] }
 chrono = "0.4"
 ureq = "3"
 csv = "1"
+rand = "0.8"
 
 [dev-dependencies]
 tempfile = "3"

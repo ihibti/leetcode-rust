@@ -25,8 +25,8 @@ enum Command {
     },
     #[command(about = "Archive current solution to archive/")]
     Archive {
-        #[arg(help = "Problem name (e.g. two-sum)")]
-        name: String,
+        #[arg(help = "Problem name (defaults to the current problem's slug)")]
+        name: Option<String>,
         #[arg(short, long, help = "easy, medium, or hard")]
         difficulty: Option<String>,
         #[arg(short, long, help = "LeetCode tags (comma-separated)")]
@@ -56,7 +56,7 @@ fn main() {
             difficulty,
             tags,
             rust_concepts,
-        } => archive::run(&root, &name, difficulty, tags, rust_concepts),
+        } => archive::run(&root, name.as_deref(), difficulty, tags, rust_concepts),
         Command::Progress => progress::run(&root),
     };
 

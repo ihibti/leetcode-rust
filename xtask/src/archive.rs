@@ -6,19 +6,21 @@ use std::path::Path;
 use crate::solve::SOLUTION_TEMPLATE;
 
 struct SessionMeta {
+    slug: Option<String>,
     difficulty: Option<String>,
     tags: Option<String>,
 }
 
 fn read_session_meta(session_path: &Path) -> SessionMeta {
     let Ok(content) = fs::read_to_string(session_path) else {
-        return SessionMeta { difficulty: None, tags: None };
+        return SessionMeta { slug: None, difficulty: None, tags: None };
     };
 
+    let slug = extract_field(&content, "slug");
     let difficulty = extract_field(&content, "difficulty");
     let tags = extract_tags_field(&content);
 
-    SessionMeta { difficulty, tags }
+    SessionMeta { slug, difficulty, tags }
 }
 
 fn extract_field(json: &str, key: &str) -> Option<String> {
@@ -55,7 +57,7 @@ fn extract_tags_field(json: &str) -> Option<String> {
 
 pub fn run(
     root: &Path,
-    name: &str,
+    name: Option<&str>,
     difficulty: Option<String>,
     tags: Option<String>,
     rust_concepts: Option<String>,
@@ -73,10 +75,16 @@ pub fn run(
     }
 
     let meta = read_session_meta(&session_path);
+    let Some(name) = name.map(str::to_string).or_else(|| meta.slug.clone()) else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "no name given and no session slug; pass a name: cargo archive <name>",
+        ));
+    };
     let difficulty = difficulty.or(meta.difficulty);
     let tags = tags.or(meta.tags);
 
-    let filename = normalize_name(name);
+    let filename = normalize_name(&name);
     let archive_path = archive_dir.join(format!("{filename}.rs"));
     if archive_path.exists() {
         return Err(io::Error::new(
@@ -89,6 +97,9 @@ pub fn run(
     let date_str = Utc::now().format("%Y-%m-%d").to_string();
 
     let mut header = format!("//! Problem: {name}\n");
+    if let Some(slug) = &meta.slug {
+        header.push_str(&format!("//! Slug: {slug}\n"));
+    }
     if let Some(d) = &difficulty {
         header.push_str(&format!("//! Difficulty: {d}\n"));
     }
@@ -169,7 +180,7 @@ mod tests {
     #[test]
     fn archive_creates_file() {
         let dir = setup_dir();
-        run(dir.path(), "two-sum", Some("easy".into()), None, None).unwrap();
+        run(dir.path(), Some("two-sum"), Some("easy".into()), None, None).unwrap();
 
         let archived = fs::read_to_string(dir.path().join("archive/two_sum.rs")).unwrap();
         assert!(archived.starts_with("//! Problem: two-sum\n"));
@@ -180,7 +191,7 @@ mod tests {
     #[test]
     fn archive_resets_template() {
         let dir = setup_dir();
-        run(dir.path(), "test", None, None, None).unwrap();
+        run(dir.path(), Some("test"), None, None, None).unwrap();
 
         let content = fs::read_to_string(dir.path().join("src/solution.rs")).unwrap();
         assert_eq!(content, SOLUTION_TEMPLATE);
@@ -189,11 +200,11 @@ mod tests {
     #[test]
     fn archive_rejects_collision() {
         let dir = setup_dir();
-        run(dir.path(), "test", None, None, None).unwrap();
+        run(dir.path(), Some("test"), None, None, None).unwrap();
 
         fs::write(dir.path().join("src/solution.rs"), "modified again").unwrap();
 
-        let result = run(dir.path(), "test", None, None, None);
+        let result = run(dir.path(), Some("test"), None, None, None);
         assert!(result.is_err());
     }
 
@@ -203,7 +214,7 @@ mod tests {
         fs::create_dir_all(dir.path().join("src")).unwrap();
         fs::write(dir.path().join("src/solution.rs"), SOLUTION_TEMPLATE).unwrap();
 
-        let result = run(dir.path(), "test", None, None, None);
+        let result = run(dir.path(), Some("test"), None, None, None);
         assert!(result.is_err());
     }
 
@@ -249,7 +260,7 @@ mod tests {
             r#"{"timestamp":"2026-01-01T00:00:00Z","slug":"two-sum","difficulty":"Easy","tags":["Array","Hash Table"]}"#,
         ).unwrap();
 
-        run(dir.path(), "two-sum", None, None, None).unwrap();
+        run(dir.path(), Some("two-sum"), None, None, None).unwrap();
 
         let archived = fs::read_to_string(dir.path().join("archive/two_sum.rs")).unwrap();
         assert!(archived.contains("//! Difficulty: Easy"));
@@ -264,7 +275,7 @@ mod tests {
             r#"{"timestamp":"2026-01-01T00:00:00Z","slug":"two-sum","difficulty":"Easy","tags":["Array"]}"#,
         ).unwrap();
 
-        run(dir.path(), "two-sum", Some("hard".into()), Some("dp".into()), None).unwrap();
+        run(dir.path(), Some("two-sum"), Some("hard".into()), Some("dp".into()), None).unwrap();
 
         let archived = fs::read_to_string(dir.path().join("archive/two_sum.rs")).unwrap();
         assert!(archived.contains("//! Difficulty: hard"));
@@ -272,9 +283,55 @@ mod tests {
     }
 
     #[test]
+    fn archive_name_from_session() {
+        let dir = setup_dir();
+        fs::write(
+            dir.path().join(".solve_session"),
+            r#"{"timestamp":"2026-01-01T00:00:00Z","slug":"two-sum","difficulty":"Easy","tags":["Array"]}"#,
+        ).unwrap();
+
+        run(dir.path(), None, None, None, None).unwrap();
+
+        let archived = fs::read_to_string(dir.path().join("archive/two_sum.rs")).unwrap();
+        assert!(archived.starts_with("//! Problem: two-sum\n//! Slug: two-sum\n"));
+    }
+
+    #[test]
+    fn archive_explicit_name_keeps_session_slug() {
+        let dir = setup_dir();
+        fs::write(
+            dir.path().join(".solve_session"),
+            r#"{"timestamp":"2026-01-01T00:00:00Z","slug":"two-sum","difficulty":"Easy","tags":[]}"#,
+        ).unwrap();
+
+        run(dir.path(), Some("mine"), None, None, None).unwrap();
+
+        let archived = fs::read_to_string(dir.path().join("archive/mine.rs")).unwrap();
+        assert!(archived.contains("//! Problem: mine\n"));
+        assert!(archived.contains("//! Slug: two-sum\n"));
+    }
+
+    #[test]
+    fn archive_no_session_slug_no_header() {
+        let dir = setup_dir();
+        run(dir.path(), Some("x"), None, None, None).unwrap();
+
+        let archived = fs::read_to_string(dir.path().join("archive/x.rs")).unwrap();
+        assert!(!archived.contains("//! Slug:"));
+    }
+
+    #[test]
+    fn archive_no_name_no_session_errors() {
+        let dir = setup_dir();
+        let err = run(dir.path(), None, None, None, None).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(dir.path().join("src/solution.rs").exists());
+    }
+
+    #[test]
     fn archive_no_session_no_flags() {
         let dir = setup_dir();
-        run(dir.path(), "test", None, None, None).unwrap();
+        run(dir.path(), Some("test"), None, None, None).unwrap();
 
         let archived = fs::read_to_string(dir.path().join("archive/test.rs")).unwrap();
         assert!(!archived.contains("//! Difficulty:"));

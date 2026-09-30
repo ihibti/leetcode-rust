@@ -1,6 +1,7 @@
 use std::fmt;
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct ProblemData {
     pub slug: String,
     pub title: String,
@@ -10,10 +11,12 @@ pub struct ProblemData {
     pub rust_snippet: String,
 }
 
+#[derive(Debug)]
 pub enum FetchError {
     Network(String),
     InvalidResponse(String),
     NoRustSnippet,
+    PaidOnly,
 }
 
 impl fmt::Display for FetchError {
@@ -22,6 +25,7 @@ impl fmt::Display for FetchError {
             FetchError::Network(msg) => write!(f, "Network error: {msg}"),
             FetchError::InvalidResponse(msg) => write!(f, "Invalid response: {msg}"),
             FetchError::NoRustSnippet => write!(f, "No Rust code snippet found for this problem"),
+            FetchError::PaidOnly => write!(f, "Premium-only problem"),
         }
     }
 }
@@ -185,7 +189,7 @@ pub fn extract_method_name(rust_snippet: &str) -> Option<String> {
 }
 
 pub fn fetch_problem(slug: &str) -> Result<ProblemData, FetchError> {
-    let query = r#"{"query":"query getQuestion($titleSlug: String!) { question(titleSlug: $titleSlug) { title difficulty content topicTags { name } codeSnippets { langSlug code } } }","variables":{"titleSlug":"SLUG"}}"#;
+    let query = r#"{"query":"query getQuestion($titleSlug: String!) { question(titleSlug: $titleSlug) { title difficulty isPaidOnly content topicTags { name } codeSnippets { langSlug code } } }","variables":{"titleSlug":"SLUG"}}"#;
     let body = query.replace("SLUG", slug);
 
     let agent = ureq::Agent::config_builder()
@@ -204,18 +208,26 @@ pub fn fetch_problem(slug: &str) -> Result<ProblemData, FetchError> {
         .read_to_string()
         .map_err(|e| FetchError::Network(e.to_string()))?;
 
-    let title = extract_json_string(&response_body, "title")
+    parse_problem_response(slug, &response_body)
+}
+
+pub fn parse_problem_response(slug: &str, response_body: &str) -> Result<ProblemData, FetchError> {
+    if response_body.contains("\"isPaidOnly\":true") {
+        return Err(FetchError::PaidOnly);
+    }
+
+    let title = extract_json_string(response_body, "title")
         .ok_or_else(|| FetchError::InvalidResponse("missing title".into()))?;
 
-    let difficulty = extract_json_string(&response_body, "difficulty")
+    let difficulty = extract_json_string(response_body, "difficulty")
         .unwrap_or_else(|| "unknown".into());
 
-    let tags = extract_topic_tags(&response_body);
+    let tags = extract_topic_tags(response_body);
 
-    let content = extract_json_string(&response_body, "content")
-        .ok_or_else(|| FetchError::InvalidResponse("missing content (premium problem?)".into()))?;
+    let content = extract_json_string(response_body, "content")
+        .ok_or_else(|| FetchError::InvalidResponse("missing content".into()))?;
 
-    let rust_snippet = extract_rust_snippet(&response_body)
+    let rust_snippet = extract_rust_snippet(response_body)
         .ok_or(FetchError::NoRustSnippet)?;
 
     let examples_text = strip_html(&content);
@@ -635,5 +647,44 @@ mod tests {
     fn difficulty_extraction() {
         let json = r#"{"difficulty":"Easy","title":"Two Sum"}"#;
         assert_eq!(extract_json_string(json, "difficulty"), Some("Easy".into()));
+    }
+
+    #[test]
+    fn response_paid_only() {
+        let body = r#"{"data":{"question":{"title":"Alien Dictionary","isPaidOnly":true,"content":null,"codeSnippets":null}}}"#;
+        assert!(matches!(
+            parse_problem_response("alien-dictionary", body),
+            Err(FetchError::PaidOnly)
+        ));
+    }
+
+    #[test]
+    fn response_ok() {
+        let body = r#"{"data":{"question":{"title":"Two Sum","difficulty":"Easy","isPaidOnly":false,"content":"<p>Given an array</p>","topicTags":[{"name":"Array"}],"codeSnippets":[{"langSlug":"rust","code":"impl Solution {\n    pub fn two_sum() {}\n}"}]}}}"#;
+        let data = parse_problem_response("two-sum", body).unwrap();
+        assert_eq!(data.slug, "two-sum");
+        assert_eq!(data.title, "Two Sum");
+        assert_eq!(data.difficulty, "Easy");
+        assert_eq!(data.tags, vec!["Array"]);
+        assert!(data.examples_text.contains("Given an array"));
+        assert!(data.rust_snippet.contains("pub fn two_sum"));
+    }
+
+    #[test]
+    fn response_no_rust() {
+        let body = r#"{"data":{"question":{"title":"Big Countries","difficulty":"Easy","isPaidOnly":false,"content":"<p>Table</p>","topicTags":[],"codeSnippets":[{"langSlug":"mysql","code":"SELECT 1"}]}}}"#;
+        assert!(matches!(
+            parse_problem_response("big-countries", body),
+            Err(FetchError::NoRustSnippet)
+        ));
+    }
+
+    #[test]
+    fn response_missing_title() {
+        let body = r#"{"data":{"question":null}}"#;
+        assert!(matches!(
+            parse_problem_response("nope", body),
+            Err(FetchError::InvalidResponse(_))
+        ));
     }
 }

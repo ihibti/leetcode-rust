@@ -26,7 +26,10 @@ cd leetcode-rust
 ## Solve a Problem
 
 ```bash
-# Fetch the problem — generates the impl skeleton and test cases
+# Draw a random unsolved problem from Amazon's last-30-days interview list
+cargo next
+
+# ...or fetch a specific problem — generates the impl skeleton and test cases
 cargo solve https://leetcode.com/problems/two-sum/
 
 # Open src/solution.rs and fill in your solution
@@ -34,11 +37,11 @@ cargo solve https://leetcode.com/problems/two-sum/
 cargo watch -x test
 
 # When you're done, save it to your archive
-# Difficulty and tags are auto-filled from LeetCode — just pass the name
-cargo archive two-sum
+# Name, difficulty and tags are auto-filled from LeetCode
+cargo archive
 
 # You can still override with flags if needed
-cargo archive two-sum -r "HashMap,entry-api"   # add Rust concepts you practiced
+cargo archive my-two-sum -r "HashMap,entry-api"   # custom file name, Rust concepts practiced
 
 # See your stats
 cargo progress
@@ -48,24 +51,28 @@ cargo progress
 
 | Command | Description |
 |---|---|
+| `cargo next [30d\|3m\|6m\|6m+\|all]` | Draw a frequency-weighted random unsolved problem from a company list (default: Amazon, 30d) |
+| `cargo next -c Google -d medium` | Pick the company (case-sensitive folder name) and restrict difficulty |
 | `cargo solve <url>` | Fetch problem from LeetCode, generate impl skeleton and tests |
 | `cargo solve` | Start with a blank template (no URL) |
 | `cargo solve --force` | Overwrite solution.rs without confirmation |
-| `cargo archive <name>` | Save current solution (difficulty and tags auto-filled from LeetCode, optional: `-r` rust concepts) |
+| `cargo archive [name]` | Save current solution (name, difficulty and tags auto-filled from LeetCode, optional: `-r` rust concepts) |
 | `cargo progress` | Show solving stats and progress |
 | `cargo watch -x test` | Auto-run tests on file changes |
 
 ## Workflow
 
 ```
-cargo solve <url> → edit solution.rs → cargo watch -x test → cargo archive <name>
-        ↑                                                            |
-        └────────────────────────────────────────────────────────────┘
+cargo next / cargo solve <url> → edit solution.rs → cargo watch -x test → cargo archive
+             ↑                                                                  |
+             └──────────────────────────────────────────────────────────────────┘
 ```
 
 When you run `cargo solve <url>`, it fetches the problem from LeetCode, generates the `impl Solution` skeleton and test cases from the examples. Open `src/solution.rs` — the method signature and tests are ready, just fill in the implementation.
 
-When you archive, difficulty and tags are automatically pulled from the LeetCode data. You only need to pass the problem name.
+`cargo next` does the same, but picks the problem for you: it downloads a company's interview list from [liquidslr/leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems), drops everything already in `archive/`, and draws at random, weighted by how often the problem was reported. Premium-only problems and problems without a Rust template are skipped automatically. The window (`30d`, `3m`, `6m`, `6m+`, `all`) is relative to that repo's latest snapshot, not to today.
+
+When you archive, the problem name, difficulty and tags are pulled from the session, and the problem's slug is recorded in the file header. That header is what `cargo next` uses to know what you've already solved — to start a fresh grind, empty `archive/`.
 
 ## rust-analyzer Setup
 
